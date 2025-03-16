@@ -21,13 +21,11 @@ class FirmAgent(mesa.Agent):
 
 
     def step(self):
-        print(f"Before step — Firm {self.unique_id}: Inventory = {self.inventory}")
-
         self.inventory += round(self.production_capacity*self.production_level)
         self.costs = self.num_employees*self.average_wage + self.production_cost
 
         if self.firm_type == "necessity":
-            demand = 5000
+            demand = 10000
         else:
             demand = 80
 
@@ -45,10 +43,9 @@ class FirmAgent(mesa.Agent):
 
         self.revenue = self.product_price*demand
         self.profit = self.revenue - self.costs
-        print(f"After step  — Firm {self.unique_id}: Inventory = {self.inventory}")
 
         
 
 
-        # print(f"[{self.unique_id}], Product: {self.product}, Revenue: {self.revenue},  Costs: {self.costs}, Profit: {self.profit}, Inventory: {self.inventory}")
+        print(f"[{self.unique_id}], Product: {self.product}, Revenue: {self.revenue},  Costs: {self.costs}, Profit: {self.profit}, Inventory: {self.inventory}")
 
