@@ -1,5 +1,5 @@
 from .government_agent import GovernmentAgent
-#from .firm_agent import FirmAgent
+from .firm_agent import FirmAgent
 #from .household_agent import HouseholdAgent
 
 # Now, when someone does:

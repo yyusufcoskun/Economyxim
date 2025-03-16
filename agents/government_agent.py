@@ -27,11 +27,11 @@ class GovernmentAgent(mesa.Agent):
         self.reserves += step_tax_revenue
         if self.reserves < 160000000000:
             self.yearly_public_spending -= step_public_spending
-            print(f"RESERVES LOW: {str(self.reserves)} ----- Tax Revenue: {str(self.yearly_tax_revenue)} ----- DROPPING Public Spending Level: {str(self.yearly_public_spending)}.")
+            # print(f"RESERVES LOW: {str(self.reserves)} ----- Tax Revenue: {str(self.yearly_tax_revenue)} ----- DROPPING Public Spending Level: {str(self.yearly_public_spending)}.")
         else:
-            print(f"RESERVES GOOD: {self.reserves} ----- Tax Revenue: {self.yearly_tax_revenue} ----- CURRENT Public Spending Level: {self.yearly_public_spending}" , end=" ")
+            # print(f"RESERVES GOOD: {self.reserves} ----- Tax Revenue: {self.yearly_tax_revenue} ----- CURRENT Public Spending Level: {self.yearly_public_spending}" , end=" ")
             self.yearly_public_spending += step_public_spending 
-            print(f"----- NEW Public Spending Level: {self.yearly_public_spending}")
+            # print(f"----- NEW Public Spending Level: {self.yearly_public_spending}")
 
         
 
