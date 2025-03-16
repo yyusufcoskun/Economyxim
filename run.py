@@ -1,18 +1,20 @@
 import mesa
 from model import EconomicSimulationModel
+from utils import save_model_data
+from data import analysis  # import your analysis function
+
 
 
 def main():
-    # Create an instance of the model with 100 agents.
     model = EconomicSimulationModel()
     
-    # Run the model for 50 steps.
+    # Run the model for 150 steps.
     for _ in range(150):
         model.step()
     
-    # Optionally, display some of the collected data.
-    # data = model.datacollector.get_agent_vars_dataframe()
-    # print(data.head())
+    data = save_model_data(model) # As data grows, you're going to need to change this. Look at ChatGPT's response, search for "single flat CSV"
+
+    analysis.reserves_public_graph(data)
 
 if __name__ == "__main__":
     main()

@@ -6,7 +6,15 @@ from agents import GovernmentAgent
 class EconomicSimulationModel(mesa.Model):
     def __init__(self):
         super().__init__()
-        GovernmentAgent.create_agents(model=self, n=1)
+
+        self.datacollector = mesa.DataCollector(
+            model_reporters={
+                "Reserves": lambda m: m.government_agent.reserves,
+                "Yearly Public Spending": lambda m: m.government_agent.yearly_public_spending,
+            }
+        )
+        self.government_agent = GovernmentAgent.create_agents(model=self, n=1)[0]
 
     def step(self):
+        self.datacollector.collect(self)
         self.agents.do("step")
