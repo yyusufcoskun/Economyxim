@@ -9,7 +9,7 @@ def main():
     model = EconomicSimulationModel()
     
     # Run the model for 150 steps.
-    for _ in range(3):
+    for _ in range(150):
         model.step()
     
     model_data = save_model_data(model) # As data grows, you're going to need to change this. Look at ChatGPT's response, search for "single flat CSV"
