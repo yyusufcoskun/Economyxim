@@ -5,7 +5,7 @@ import os
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
-def line_chart(df, columns, title=None, xlabel="Step", ylabel=None, filename="line_chart.png"):
+def line_chart(df, columns, title=None, xlabel="Step", ylabel=None, filename="line_chart.png", results_folder=None):
     """
     General-purpose line chart function.
 
@@ -21,10 +21,10 @@ def line_chart(df, columns, title=None, xlabel="Step", ylabel=None, filename="li
         print("No model data available for analysis.")
         return
 
-    project_root = os.path.abspath(os.path.join(current_dir, ".."))
-    results_folder = os.path.join(project_root, "results")
+    if results_folder is None:
+        results_folder = os.path.join(os.path.abspath(os.path.join(current_dir, "..")), "results")
+    
     os.makedirs(results_folder, exist_ok=True)
-
 
     plt.figure(figsize=(12, 6))
     for col in columns:
@@ -47,7 +47,7 @@ def line_chart(df, columns, title=None, xlabel="Step", ylabel=None, filename="li
     print(f"Plot saved to {file_path}")
 
 
-def bar_chart(df, groupby_col, value_col, agg_func="mean", title=None, xlabel=None, ylabel=None, filename="bar_chart.png"):
+def bar_chart(df, groupby_col, value_col, agg_func="mean", title=None, xlabel=None, ylabel=None, filename="bar_chart.png", results_folder=None):
     """
     General bar chart function for grouped data.
 
@@ -65,10 +65,13 @@ def bar_chart(df, groupby_col, value_col, agg_func="mean", title=None, xlabel=No
         print("No data provided for bar chart.")
         return
     
+    if results_folder is None:
+        results_folder = os.path.join(os.path.abspath(os.path.join(current_dir, "..")), "results")
+
+    os.makedirs(results_folder, exist_ok=True)
 
     grouped = df.groupby(groupby_col)[value_col].agg(agg_func)
 
-    # Plot
     plt.figure(figsize=(10, 6))
     bars = plt.bar(grouped.index, grouped.values, color="#69b3a2")
     plt.title(title or f"{agg_func.title()} of {value_col} by {groupby_col}")
@@ -76,15 +79,11 @@ def bar_chart(df, groupby_col, value_col, agg_func="mean", title=None, xlabel=No
     plt.ylabel(ylabel or f"{agg_func.title()} of {value_col}")
     plt.grid(axis="y")
 
-    # Add value labels
+    # Adding value labels
     for bar in bars:
         yval = bar.get_height()
         plt.text(bar.get_x() + bar.get_width() / 2, yval, f"{yval:.2f}", ha="center", va="bottom")
 
-    # Save the chart
-    project_root = os.path.abspath(os.path.join(current_dir, ".."))
-    results_folder = os.path.join(project_root, "results")
-    os.makedirs(results_folder, exist_ok=True)
     file_path = os.path.join(results_folder, filename)
     plt.savefig(file_path)
     print(f"Bar chart saved to {file_path}")
