@@ -32,7 +32,7 @@ class FirmAgent(mesa.Agent):
         if self.inventory <= demand:
             deficit = demand - self.inventory
             self.inventory -= self.inventory
-            print(f"SUPPLY DEFICIT OF {deficit}!!" , end=" ")
+            # print(f"SUPPLY DEFICIT OF {deficit}!!" , end=" ")
             if self.production_level < 1:
                 if (self.production_level + 0.1) < 1:
                     self.production_level + 0.1
@@ -46,6 +46,6 @@ class FirmAgent(mesa.Agent):
 
         
 
-
-        print(f"[{self.unique_id}], Product: {self.product}, Revenue: {self.revenue},  Costs: {self.costs}, Profit: {self.profit}, Inventory: {self.inventory}")
+    
+        # print(f"[{self.unique_id}], Product: {self.product}, Revenue: {self.revenue},  Costs: {self.costs}, Profit: {self.profit}, Inventory: {self.inventory}")
 

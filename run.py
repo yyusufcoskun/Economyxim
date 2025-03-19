@@ -34,5 +34,16 @@ def main():
         filename="avg_profit_by_firm_type.png"
     )
 
+    analysis.bar_chart(
+        df=agent_data,
+        groupby_col="IncomeBracket",
+        value_col="Welfare",
+        agg_func="mean",
+        title="Average Welfare by Income Bracket",
+        xlabel="Income Bracket",
+        ylabel="Welfare",
+        filename="avg_welfare_by_income_bracket.png"
+    )
+
 if __name__ == "__main__":
     main()
