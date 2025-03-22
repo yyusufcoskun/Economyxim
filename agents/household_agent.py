@@ -1,6 +1,9 @@
 import mesa
 import numpy as np
 import pandas as pd
+import random
+
+
 
 
 class HouseholdAgent(mesa.Agent):
@@ -11,7 +14,7 @@ class HouseholdAgent(mesa.Agent):
         self.num_people = num_people
         self.total_household_income = 0
         self.spend_ratio = spend_ratio
-        self.income_tax_rate = income_tax_rate ## TODO in ChatGPT, search for: "Assign the correct tax rate at creation time", then do something similar to what is says there.
+        self.income_tax_rate = income_tax_rate # TODO in ChatGPT, search for: "Assign the correct tax rate at creation time", then do something similar to what is says there.
         self.total_income_posttax = 0
         self.total_household_expense = 0
         self.total_household_savings = 0
@@ -24,11 +27,11 @@ class HouseholdAgent(mesa.Agent):
 
         default_income_per_person = 10000
         self.total_household_income = default_income_per_person*self.num_people
-        self.total_income_posttax = self.total_household_income*self.income_tax_rate
+        self.total_income_posttax = self.total_household_income*(1 - self.income_tax_rate)
 
-        self.total_household_expense = self.total_household_income*self.spend_ratio
+        self.total_household_expense = self.total_income_posttax*self.spend_ratio
 
-        self.total_household_savings = self.total_household_income - self.total_household_expense
+        self.total_household_savings = self.total_income_posttax - self.total_household_expense
 
         if self.income_bracket == "low":
             self.health_level = 35
@@ -37,6 +40,25 @@ class HouseholdAgent(mesa.Agent):
         else:
             self.health_level = 100
 
+        if self.income_bracket == "low":
+            firms = [a for a in self.model.agents if hasattr(a, "firm_type") and a.firm_type == "necessity"]
+        else:
+            firms = [a for a in self.model.agents if hasattr(a, "firm_type")]
 
-        self.welfare = self.total_household_income*0.3 + self.total_household_expense*0.2 + self.total_household_savings*0.2 + self.health_level*0.3
-        print(f"Welfare: {self.welfare}")
+        if not firms:
+            return
+
+        # TODO Choose random firm for now, change
+        chosen_firm = random.choice(firms)
+
+        # Demanded units
+        demand_units = int(self.total_household_expense // chosen_firm.product_price)
+
+        # Submit demand to firm
+        chosen_firm.receive_demand(demand_units)
+        # print(f"Demanded units: {demand_units}")
+
+
+
+        self.welfare = self.total_income_posttax*0.3 + self.total_household_expense*0.2 + self.total_household_savings*0.2 + self.health_level*0.3
+        # print(f"Welfare: {self.welfare}")

@@ -18,19 +18,20 @@ class FirmAgent(mesa.Agent):
         self.revenue = 0
         self.costs = 0
         self.profit = 0
+        self.demand_received = 0
 
 
+    def receive_demand(self, units):
+        self.demand_received += units
+    
     def step(self):
         self.inventory += round(self.production_capacity*self.production_level)
         self.costs = self.num_employees*self.average_wage + self.production_cost
 
-        if self.firm_type == "necessity":
-            demand = 10000
-        else:
-            demand = 80
+        sold_units = min(self.demand_received, self.inventory)
 
-        if self.inventory <= demand:
-            deficit = demand - self.inventory
+        if self.inventory <= self.demand_received:
+            deficit = self.demand_received - self.inventory
             self.inventory -= self.inventory
             # print(f"SUPPLY DEFICIT OF {deficit}!!" , end=" ")
             if self.production_level < 1:
@@ -39,10 +40,16 @@ class FirmAgent(mesa.Agent):
                 elif (self.production_level + 0.1) > 1:
                     self.production_level = 1
         else:
-            self.inventory -= demand
+            self.inventory -= sold_units
 
-        self.revenue = self.product_price*demand
+        self.revenue = self.product_price*sold_units
         self.profit = self.revenue - self.costs
+        print(f"Demand received: {self.demand_received} ")
+        self.demand_received = 0
+
+        
+
+
 
         
 
