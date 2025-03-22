@@ -30,9 +30,9 @@ def main():
     )
 
     # analysis.line_chart(
-    #     df=model_data,
-    #     columns=["Inventory"],
-    #     title="Inventory Over Time",
+    #     df=agent_data,
+    #     columns=["FirmType", "Profit"],
+    #     title="Profit for Firm Types Over Time",
     #     ylabel="Value",
     #     filename="inventory_over_time.png",
     #     results_folder = output_results_folder

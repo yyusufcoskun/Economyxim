@@ -42,23 +42,22 @@ class HouseholdAgent(mesa.Agent):
 
         if self.income_bracket == "low":
             firms = [a for a in self.model.agents if hasattr(a, "firm_type") and a.firm_type == "necessity"]
+            chosen_firm = random.choice(firms) # TODO Chooses random firm for now, change
+            demand_units = int(self.total_household_expense // chosen_firm.product_price)
+        elif self.income_bracket == "middle":
+            firms = [a for a in self.model.agents if hasattr(a, "firm_type")]
+            chosen_firm = random.choice(firms)
+            demand_units = int(self.total_household_expense // chosen_firm.product_price)*0.65
         else:
             firms = [a for a in self.model.agents if hasattr(a, "firm_type")]
-
+            chosen_firm = random.choice(firms)
+            demand_units = int(self.total_household_expense // chosen_firm.product_price)
+        
         if not firms:
             return
 
-        # TODO Choose random firm for now, change
-        chosen_firm = random.choice(firms)
-
-        # Demanded units
-        demand_units = int(self.total_household_expense // chosen_firm.product_price)
-
-        # Submit demand to firm
         chosen_firm.receive_demand(demand_units)
         # print(f"Demanded units: {demand_units}")
-
-
 
         self.welfare = self.total_income_posttax*0.3 + self.total_household_expense*0.2 + self.total_household_savings*0.2 + self.health_level*0.3
         # print(f"Welfare: {self.welfare}")
