@@ -8,7 +8,7 @@ def main():
     model = EconomicSimulationModel()
     
     # Run the model for 150 steps.
-    for _ in range(30):
+    for _ in range(150):
         model.step()
     
 

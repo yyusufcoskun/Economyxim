@@ -25,7 +25,7 @@ class HouseholdAgent(mesa.Agent):
 
     def step(self):
 
-        default_income_per_person = 10000
+        default_income_per_person = 30000
         self.total_household_income = default_income_per_person*self.num_people
         self.total_income_posttax = self.total_household_income*(1 - self.income_tax_rate)
 
@@ -47,7 +47,7 @@ class HouseholdAgent(mesa.Agent):
         elif self.income_bracket == "middle":
             firms = [a for a in self.model.agents if hasattr(a, "firm_type")]
             chosen_firm = random.choice(firms)
-            demand_units = int(self.total_household_expense // chosen_firm.product_price)*0.65
+            demand_units = int(self.total_household_expense // chosen_firm.product_price)*0.75
         else:
             firms = [a for a in self.model.agents if hasattr(a, "firm_type")]
             chosen_firm = random.choice(firms)

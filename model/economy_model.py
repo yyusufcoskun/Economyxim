@@ -43,12 +43,12 @@ class EconomicSimulationModel(mesa.Model):
             firm_type="necessity",
             product=[f"NecessityProduct_{i}" for i in range(n_necessity)],
             production_capacity=[random.randint(5000, 10000) for _ in range(n_necessity)],
-            product_price=[random.uniform(10.0, 30.0) for _ in range(n_necessity)],
+            profit_margin=0.1,
             production_cost=[random.uniform(2.0, 5.0) for _ in range(n_necessity)],
-            average_wage=[random.randint(35000, 45000) for _ in range(n_necessity)],
+            average_wage=[random.randint(20000, 35000) for _ in range(n_necessity)],
             num_employees=[random.randint(40, 80) for _ in range(n_necessity)],
-            inventory=[random.randint(2000, 10000) for _ in range(n_necessity)],
-            production_level=[random.uniform(0.9, 1) for _ in range(n_necessity)]
+            # inventory=[random.randint(1000, 50000) for _ in range(n_necessity)],
+            production_level=[random.uniform(0.7, 1) for _ in range(n_necessity)]
         )
 
         # --- Luxury Firms (20) ---
@@ -58,17 +58,17 @@ class EconomicSimulationModel(mesa.Model):
             n=n_luxury,
             firm_type="luxury",
             product=[f"LuxuryProduct_{i}" for i in range(n_luxury)],
-            production_capacity=[random.randint(40, 80) for _ in range(n_luxury)],
-            product_price=[random.uniform(100.0, 150.0) for _ in range(n_luxury)],
+            production_capacity=[random.randint(400, 800) for _ in range(n_luxury)],
+            profit_margin=0.4,
             production_cost=[random.uniform(30.0, 50.0) for _ in range(n_luxury)],
             average_wage=[random.randint(70000, 100000) for _ in range(n_luxury)],
             num_employees=[random.randint(5, 30) for _ in range(n_luxury)],
-            inventory=[random.randint(50, 400) for _ in range(n_luxury)],
-            production_level=[random.uniform(0.3, 1) for _ in range(n_luxury)]
+            # inventory=[random.randint(50, 400) for _ in range(n_luxury)],
+            production_level=[random.uniform(0.5, 1) for _ in range(n_luxury)]
         )
 
 
-        n_households = 300
+        n_households = 1000
         HouseholdAgent.create_agents(
             model=self,
             n=n_households,
