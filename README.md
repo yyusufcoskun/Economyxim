@@ -1,7 +1,8 @@
 # Economyxim: Agent-Based Economic Simulation
 
 ## Overview
-Economyxim is an agent-based economic simulation that models the interactions between firms and households in a market economy. The simulation focuses on how firms make decisions about production, pricing, and staffing in response to market conditions, and how these decisions affect household consumption patterns.
+
+Economyxim is an agent-based model (ABM) that simulates a mixed economy with interactions between firms, households, and government. The simulation focuses on emergent market behaviors such as price adjustments, inventory management, employment decisions, and consumer spending patterns. By modeling microeconomic behaviors of individual agents, the simulation explores how these lead to macroeconomic outcomes like market equilibrium, price adjustments, and inventory dynamics.
 
 ## Features
 - **Firm Agents**: Simulate individual firms that:
@@ -38,8 +39,7 @@ economyxim/
 
 ## Key Components
 
-### Firm Agent
-The `FirmAgent` class implements the core business logic for firms in the simulation:
+Firms use a sophisticated decision-making process that includes:
 
 - **Production Management**:
   - Adjusts production levels based on inventory and demand
