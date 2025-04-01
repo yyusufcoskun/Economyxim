@@ -19,50 +19,73 @@ def main():
     agent_data = save_agent_data(model, output_data_folder)
     generate_summary_report(model, output_data_folder)
 
-
-    analysis.line_chart(
-        df=model_data,
-        columns=["Reserves", "Yearly Public Spending"],
-        title="Reserves and Public Spending Over Time",
-        ylabel="Value (Billions)",
-        filename="reserves_public_spending.png",
-        results_folder = output_results_folder
-    )
-
-    # analysis.line_chart(
-    #     df=agent_data,
-    #     columns=["FirmType", "Profit"],
-    #     title="Profit for Firm Types Over Time",
-    #     ylabel="Value",
-    #     filename="inventory_over_time.png",
-    #     results_folder = output_results_folder
-    # )
-    
-    analysis.bar_chart(
+    analysis.create_distribution_plot(
         df=agent_data,
         groupby_col="FirmType",
         value_col="Profit",
-        agg_func="mean",
-        title="Average Profit by Firm Type",
+        plot_type="box",
+        title="Distribution of Firm Profits by Type",
         xlabel="Firm Type",
-        ylabel="Average Profit",
-        filename="avg_profit_by_firm_type.png",
-        results_folder = output_results_folder
-
+        ylabel="Profit",
+        figsize=(10, 6),
+        grid=True,
+        filename="firm_profits_distribution.png",
+        results_folder=output_results_folder
     )
 
-    analysis.bar_chart(
+    analysis.create_plot(
+        df=model_data,
+        plot_type="line", 
+        columns=["Reserves", "Yearly Public Spending"],
+        title="Government Reserves and Public Spending Over Time",
+        xlabel="Time Step",
+        ylabel="Amount",
+        figsize=(12, 6),
+        grid=True,
+        legend=True,
+        filename="government_finances.png",
+        results_folder=output_results_folder
+    )
+
+    analysis.create_time_series_by_type(
         df=agent_data,
-        groupby_col="IncomeBracket",
-        value_col="Welfare",
-        agg_func="mean",
-        title="Average Welfare by Income Bracket",
-        xlabel="Income Bracket",
-        ylabel="Welfare",
-        filename="avg_welfare_by_income_bracket.png",
-        results_folder = output_results_folder
+        value_col="Inventory",
+        title="Average Inventory Levels by Firm Type Over Time",
+        xlabel="Time Step",
+        ylabel="Average Inventory",
+        figsize=(12, 6),
+        grid=True,
+        legend=True,
+        filename="firm_inventory_levels.png",
+        results_folder=output_results_folder
     )
 
+    analysis.create_time_series_by_type(
+        df=agent_data,
+        value_col="Profit",
+        title="Average Profit Levels by Firm Type Over Time",
+        xlabel="Time Step",
+        ylabel="Average Profit",
+        figsize=(12, 6),
+        grid=True,
+        legend=True,
+        filename="firm_profit_levels.png",
+        results_folder=output_results_folder
+    )
 
+    analysis.create_time_series_by_type(
+        df=agent_data,
+        value_col="ProductPrice",
+        title="Average Product Price Levels by Firm Type Over Time",
+        xlabel="Time Step",
+        ylabel="Average Product Price",
+        figsize=(12, 6),
+        grid=True,
+        legend=True,
+        filename="firm_product_price_levels.png",
+        results_folder=output_results_folder
+    )
+
+    
 if __name__ == "__main__":
     main()

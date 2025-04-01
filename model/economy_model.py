@@ -19,6 +19,16 @@ class EconomicSimulationModel(mesa.Model):
                  # Firm agent fields
                 "FirmType": lambda a: getattr(a, "firm_type", None),
                 "Profit": lambda a: getattr(a, "profit", None),
+                "Inventory": lambda a: getattr(a, "inventory", None),
+                "ProductPrice": lambda a: getattr(a, "product_price", None),
+                "RevenuePerEmployee": lambda a: getattr(a, "revenue_per_employee", None),
+                "ProductionLevel": lambda a: getattr(a, "production_level", None),
+                "NumEmployees": lambda a: getattr(a, "num_employees", None),
+                "AverageWage": lambda a: getattr(a, "average_wage", None),
+                "DemandReceived": lambda a: getattr(a, "demand_received", None),
+                "InventoryDemandRatio": lambda a: getattr(a, "inventory_demand_ratio", None),
+                "SellThroughRate": lambda a: getattr(a, "sell_through_rate", None),
+                
 
                 # Household agent fields
                 "IncomeBracket": lambda a: getattr(a, "income_bracket", None),
