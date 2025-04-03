@@ -2,18 +2,19 @@ import mesa
 from model import EconomicSimulationModel
 from utils import *
 from data import analysis
+import pandas as pd
+import os
 
 
 def main():
     model = EconomicSimulationModel()
-    
+    run_name = input("Enter a name for this simulation run: ")
     # Run the model for 150 steps.
     for _ in range(150):
         model.step()
     
-
-    output_data_folder = create_run_folder("testing_demand", base_path="data/saved_data")
-    output_results_folder = create_run_folder("testing_demand", base_path="results")
+    output_data_folder = create_run_folder(run_name, base_path="data/saved_data")
+    output_results_folder = create_run_folder(run_name, base_path="results")
 
     model_data = save_model_data(model, output_data_folder) # As data grows, you're going to need to change this. Look at ChatGPT's response, search for "single flat CSV"
     agent_data = save_agent_data(model, output_data_folder)
@@ -83,6 +84,20 @@ def main():
         grid=True,
         legend=True,
         filename="firm_product_price_levels.png",
+        results_folder=output_results_folder
+    )
+    
+    analysis.create_time_series_by_type(
+        df=agent_data,
+        value_col="SkillLevel",
+        type_col="SkillType",  # Group by skill type
+        title="Average Skill Level by Skill Type Over Time",
+        xlabel="Time Step",
+        ylabel="Average Skill Level",
+        figsize=(12, 6),
+        grid=True,
+        legend=True,
+        filename="skill_level_by_type.png",
         results_folder=output_results_folder
     )
 

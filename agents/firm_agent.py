@@ -197,8 +197,8 @@ class FirmAgent(mesa.Agent):
             productivity = (skill_level * person.work_hours) / (person.wage + 1e-6)
             employee_productivity.append((productivity, person))
         
-        # Sort by productivity (lowest first)
-        employee_productivity.sort()
+        # Sort by productivity (lowest first), using only the first element of each tuple
+        employee_productivity.sort(key=lambda x: x[0])
         
         # Fire the least productive employee
         if employee_productivity:
@@ -236,6 +236,10 @@ class FirmAgent(mesa.Agent):
             "mid": 0, 
             "entry": 0
         }
+        
+        # Keep track of previously employed people to avoid rehiring them
+        if not hasattr(self, 'previous_employees'):
+            self.previous_employees = set()
         
         # Count current employees at each level
         for emp in employees:
@@ -275,6 +279,7 @@ class FirmAgent(mesa.Agent):
             "necessity": {"senior": 50, "mid": 30, "entry": 10},
             "luxury": {"senior": 70, "mid": 50, "entry": 30}
         }
+        
         # Get minimum skill level for this level from firm type
         # Example: if self.firm_type is "tech" and job_level is "senior":
         # firm_levels = min_skill_levels["tech"] = {"senior": 0.8, "mid": 0.6, "entry": 0.4}
@@ -282,13 +287,20 @@ class FirmAgent(mesa.Agent):
         firm_levels = min_skill_levels.get(self.firm_area, min_skill_levels["necessity"])
         min_skill_level = firm_levels[job_level]
         
-        
-        # Find candidates meeting requirements
+        # Find candidates meeting requirements, excluding previous employees
         candidates = [agent for agent in self.model.agents 
                     if hasattr(agent, 'job_seeking') and agent.job_seeking 
-                    and agent.skill_level >= min_skill_level]
+                    and agent.skill_level >= min_skill_level
+                    and agent.unique_id not in self.previous_employees]
         
-        # If no qualified candidates, lower requirements slightly
+        # If no qualified candidates who haven't worked here before, lower requirements slightly 
+        if not candidates:
+            candidates = [agent for agent in self.model.agents 
+                        if hasattr(agent, 'job_seeking') and agent.job_seeking
+                        and agent.skill_level >= min_skill_level - 10
+                        and agent.unique_id not in self.previous_employees]
+            
+        # If still no candidates, consider all job seekers but still exclude previous employees
         if not candidates:
             candidates = [agent for agent in self.model.agents 
                         if hasattr(agent, 'job_seeking') and agent.job_seeking
@@ -298,7 +310,13 @@ class FirmAgent(mesa.Agent):
         if candidates:
             # Sort by skill level
             candidates.sort(key=lambda p: p.skill_level, reverse=True)
-            person_to_hire = candidates[0]
+            
+            # Consider the top half of candidates (with a minimum of at least one person)
+            top_candidate_count = max(1, len(candidates) // 2)
+            top_candidates = candidates[:top_candidate_count]
+            
+            # Randomly select from top candidates
+            person_to_hire = random.choice(top_candidates)
             
             # Determine wage based on skill level and job level
             base_wage = self.entry_wage * self.wage_multipliers[job_level]
@@ -309,6 +327,16 @@ class FirmAgent(mesa.Agent):
             person_to_hire.employer = self
             person_to_hire.wage = offered_wage
             person_to_hire.job_seeking = False
+            
+            # Add to previous employees set to avoid rehiring
+            self.previous_employees.add(person_to_hire.unique_id)
+            
+            # Keep the set from growing too large
+            if len(self.previous_employees) > 100:
+                # Remove oldest entries
+                for _ in range(10):
+                    if self.previous_employees:
+                        self.previous_employees.pop()
             
             print(f"Firm {self.unique_id} hired Person {person_to_hire.unique_id} as {job_level} level with skill {person_to_hire.skill_level:.2f}")
 
@@ -400,9 +428,9 @@ class FirmAgent(mesa.Agent):
         self.demand_received = 0
         
         # Print debug information
-        print(f"[Firm {self.unique_id}], Units Produced: {produced_units}, "
+    """print(f"[Firm {self.unique_id}], Units Produced: {produced_units}, "
               f"Units Sold: {sold_units}, Inventory: {self.inventory}, "
               f"Cost Per Unit: {cost_per_unit}, Price: {self.product_price}, "
               f"Revenue: {self.revenue}, Costs: {self.costs}, "
-              f"Profit: {self.profit}")
+              f"Profit: {self.profit}")"""
 

@@ -43,7 +43,13 @@ class EconomicSimulationModel(mesa.Model):
                 "HouseholdExpense": lambda a: getattr(a, "total_household_expense", None),
                 "HouseholdSavings": lambda a: getattr(a, "total_household_savings", None),
                 "HealthLevel": lambda a: getattr(a, "health_level", None),
-                "Welfare": lambda a: getattr(a, "welfare", None)
+                "Welfare": lambda a: getattr(a, "welfare", None),
+                
+                # Person agent fields
+                "SkillLevel": lambda a: getattr(a, "skill_level", None),
+                "SkillType": lambda a: getattr(a, "skill_type", None),
+                "IsEmployed": lambda a: 1 if getattr(a, "employer", None) is not None else 0,
+                "Wage": lambda a: getattr(a, "wage", None)
             }
         )
         
@@ -172,14 +178,13 @@ class EconomicSimulationModel(mesa.Model):
         HouseholdAgent.create_agents(
             model=self,
             n=n_households,
-            income_bracket=[random.choice(["low", "middle", "high"]) for _ in range(n_households)],
             num_people=[random.randint(1, 5) for _ in range(n_households)],
             spend_ratio=[round(random.uniform(0.4, 1.0), 2) for _ in range(n_households)],
-            income_tax_rate=0.15  # Same for all for now, so one value is fine
+            income_tax_rate=0.15  # TODO: Same for all for now, so one value is fine
         )
 
         
 
     def step(self):
-        self.datacollector.collect(self)
+        self.datacollector.collect(self)        
         self.agents.do("step")
