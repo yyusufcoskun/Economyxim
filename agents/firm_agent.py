@@ -204,12 +204,15 @@ class FirmAgent(mesa.Agent):
         if employee_productivity:
             _, person_to_fire = employee_productivity[0]
             
+            # Get their job level for reporting
+            job_level = person_to_fire.job_level if hasattr(person_to_fire, 'job_level') else "unknown"
+            
             # Update person's employment status
             person_to_fire.employer = None
             person_to_fire.wage = 0
             person_to_fire.job_seeking = True
             
-            print(f"Firm {self.unique_id} fired Person {person_to_fire.unique_id} with productivity {employee_productivity[0][0]}")
+            print(f"Firm {self.unique_id} fired Person {person_to_fire.unique_id} with job level {job_level} and productivity {employee_productivity[0][0]:.2f}")
 
     
 
@@ -240,15 +243,36 @@ class FirmAgent(mesa.Agent):
         # Keep track of previously employed people to avoid rehiring them
         if not hasattr(self, 'previous_employees'):
             self.previous_employees = set()
+            
+        # Define minimum skill levels for each area and job level
+        min_skill_levels = {
+            "technical": {"senior": 80, "mid": 60, "entry": 40},
+            "creative": {"senior": 70, "mid": 50, "entry": 30}, 
+            "physical": {"senior": 60, "mid": 40, "entry": 10},
+            "social": {"senior": 70, "mid": 50, "entry": 30},
+            "analytical": {"senior": 80, "mid": 60, "entry": 30},
+            "service": {"senior": 60, "mid": 40, "entry": 20},
+            "necessity": {"senior": 50, "mid": 30, "entry": 10},
+            "luxury": {"senior": 70, "mid": 50, "entry": 30}
+        }
         
-        # Count current employees at each level
+        # Get thresholds for this firm area
+        # Example: if self.firm_area is "tech" and job_level is "senior":
+        # firm_levels = min_skill_levels["tech"] = {"senior": 0.8, "mid": 0.6, "entry": 0.4}
+        firm_levels = min_skill_levels.get(self.firm_area, min_skill_levels["necessity"])
+        
+        # Count current employees at each level using area-specific thresholds
         for emp in employees:
-            if emp.skill_level >= 70:
-                current_mix["senior"] += 1
-            elif emp.skill_level >= 40:
-                current_mix["mid"] += 1
+            if hasattr(emp, 'job_level') and emp.job_level is not None:
+                current_mix[emp.job_level] += 1
             else:
-                current_mix["entry"] += 1
+                # Categorize based on skill thresholds for this area
+                if emp.skill_level >= firm_levels["senior"]:
+                    current_mix["senior"] += 1
+                elif emp.skill_level >= firm_levels["mid"]:
+                    current_mix["mid"] += 1
+                else:
+                    current_mix["entry"] += 1
                 
         # Calculate percentages
         total = len(employees) + 1  # Add 1 for new hire
@@ -268,23 +292,7 @@ class FirmAgent(mesa.Agent):
         # Choose the level with the highest difference (most needed)
         job_level = max(differences, key=differences.get)
         
-        # Set minimum skill requirements based on level
-        min_skill_levels = {
-            "technical": {"senior": 80, "mid": 60, "entry": 40},
-            "creative": {"senior": 70, "mid": 50, "entry": 30}, 
-            "physical": {"senior": 60, "mid": 40, "entry": 10},
-            "social": {"senior": 70, "mid": 50, "entry": 30},
-            "analytical": {"senior": 80, "mid": 60, "entry": 30},
-            "service": {"senior": 60, "mid": 40, "entry": 20},
-            "necessity": {"senior": 50, "mid": 30, "entry": 10},
-            "luxury": {"senior": 70, "mid": 50, "entry": 30}
-        }
-        
-        # Get minimum skill level for this level from firm type
-        # Example: if self.firm_type is "tech" and job_level is "senior":
-        # firm_levels = min_skill_levels["tech"] = {"senior": 0.8, "mid": 0.6, "entry": 0.4}
-        # min_skill_level = firm_levels["senior"] = 0.8
-        firm_levels = min_skill_levels.get(self.firm_area, min_skill_levels["necessity"])
+        # Get minimum skill level for this level from firm area
         min_skill_level = firm_levels[job_level]
         
         # Find candidates meeting requirements, excluding previous employees
@@ -300,13 +308,7 @@ class FirmAgent(mesa.Agent):
                         and agent.skill_level >= min_skill_level - 10
                         and agent.unique_id not in self.previous_employees]
             
-        # If still no candidates, consider all job seekers but still exclude previous employees
-        if not candidates:
-            candidates = [agent for agent in self.model.agents 
-                        if hasattr(agent, 'job_seeking') and agent.job_seeking
-                        and agent.skill_level >= min_skill_level - 10]
-        
-        # Hire most qualified candidate
+        # Hire one of the most qualified candidates
         if candidates:
             # Sort by skill level
             candidates.sort(key=lambda p: p.skill_level, reverse=True)
@@ -337,6 +339,9 @@ class FirmAgent(mesa.Agent):
                 for _ in range(10):
                     if self.previous_employees:
                         self.previous_employees.pop()
+            
+            # Set the job level
+            person_to_hire.job_level = job_level
             
             print(f"Firm {self.unique_id} hired Person {person_to_hire.unique_id} as {job_level} level with skill {person_to_hire.skill_level:.2f}")
 

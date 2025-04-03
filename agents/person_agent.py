@@ -31,6 +31,9 @@ class PersonAgent(mesa.Agent):
         # Generate a more realistic skill distribution (normal distribution centered around 40-60)
         self.skill_level = min(100, max(1, random.normalvariate(50, 15)))  # Normal distribution with mean 50, std 15
         
+        # Job level (senior, mid, entry) - will be set when hired
+        self.job_level = None
+        
         self.unemployed_counter = 0  # Track how many steps person has been unemployed
         self.study_cooldown = 0  # Track remaining study period when person stops looking
         
@@ -49,7 +52,7 @@ class PersonAgent(mesa.Agent):
             # If unemployed for too long, take a break to study
             if self.unemployed_counter >= 4:  #  threshold before giving up
                 self.job_seeking = False
-                self.study_cooldown = 2  # Study for 4 steps
+                self.study_cooldown = 2  # Study for 2 steps
                 self.unemployed_counter = 0
                 
         # If in study period, improve skills and track cooldown        

@@ -101,6 +101,25 @@ def main():
         results_folder=output_results_folder
     )
 
+    """# Create time series for job levels
+    # Filter agent_data to only include rows with JobLevel not null
+    person_data = agent_data[~agent_data["JobLevel"].isna()]"""
+    
+    # Create a job level distribution time series
+    analysis.create_time_series_by_type(
+        df=agent_data,
+        value_col="IsEmployed",  # 1 if employed, 0 if not
+        type_col="JobLevel",     # Group by job level
+        title="Employment by Job Level Over Time",
+        xlabel="Time Step",
+        ylabel="Number Employed",
+        figsize=(12, 6),
+        grid=True,
+        legend=True,
+        filename="job_level_employment.png",
+        results_folder=output_results_folder
+    )
+
     
 if __name__ == "__main__":
     main()

@@ -48,6 +48,7 @@ class EconomicSimulationModel(mesa.Model):
                 # Person agent fields
                 "SkillLevel": lambda a: getattr(a, "skill_level", None),
                 "SkillType": lambda a: getattr(a, "skill_type", None),
+                "JobLevel": lambda a: getattr(a, "job_level", None),
                 "IsEmployed": lambda a: 1 if getattr(a, "employer", None) is not None else 0,
                 "Wage": lambda a: getattr(a, "wage", None)
             }
