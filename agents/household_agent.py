@@ -21,6 +21,12 @@ class HouseholdAgent(mesa.Agent):
         self.health_level = 0 # income seviyesine göre değişecek
         self.welfare = 0
 
+        self.members = []
+
+        for i in range(num_people):
+
+            person = PersonAgent(self.model, self)
+            self.members.append(person)
 
 
     def step(self):
@@ -59,5 +65,4 @@ class HouseholdAgent(mesa.Agent):
         chosen_firm.receive_demand(demand_units)
         # print(f"Demanded units: {demand_units}")
 
-        self.welfare = self.total_income_posttax*0.3 + self.total_household_expense*0.2 + self.total_household_savings*0.2 + self.health_level*0.3
-        # print(f"Welfare: {self.welfare}")
+        self.welfare = self.total_income_posttax*0.3 + self.total_household_expense*0.2 + self.total_household_savings*0.2 + self.health_level*0.3        # print(f"Welfare: {self.welfare}")

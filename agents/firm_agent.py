@@ -6,8 +6,8 @@ import random
 
 class FirmAgent(mesa.Agent):
     def __init__(self, model, product, production_capacity, profit_margin, 
-                 production_cost, average_wage, num_employees, 
-                 firm_type="necessity", production_level=1):
+                 production_cost, entry_wage, num_employees, 
+                 firm_type, firm_area, production_level=1):
         super().__init__(model)
         # print(f"[DEBUG] Assigned production_level for {self.unique_id}: {production_level}")
 
@@ -18,7 +18,10 @@ class FirmAgent(mesa.Agent):
         self.production_level = production_level
         self.product_price = 0 # CHECK
         self.production_cost = production_cost
-        self.average_wage = average_wage
+        self.firm_area = firm_area
+        self.entry_wage = entry_wage
+        self.wage_multipliers = {"entry": 1.0, "mid": 1.4, "senior": 2.0}
+        
         self.num_employees = num_employees
         self.inventory = 0  # CHECK
         
@@ -156,23 +159,173 @@ class FirmAgent(mesa.Agent):
 
     def adjust_employees(self):
         """Adjust number of employees based on revenue per employee."""
-        '''
-        if self.last_step_profit is None:
-            return
-        profit_delta = self.profit - self.last_step_profit
-        change = int(self.num_employees * profit_delta * 0.00001)
-        self.num_employees = max(1, self.num_employees + change) # Prevent employees dropping down to 0
-        '''
 
+        # TODO make this last 2 steps instead of just last step
         if self.last_step_revenue_per_emp is None:
             return
 
         if self.last_step_revenue_per_emp > self.revenue_per_employee:
-            self.num_employees -= 1
+            # FIRING: fires least productive employee (hours*skill)
+            self.fire_least_productive()
+            self.num_employees = max(1, self.num_employees - 1)
         else:
+            # HIRING
+            self.hire_new_employee()
             self.num_employees += 1
 
-        self.num_employees = max(1, self.num_employees)
+    
+    def fire_least_productive(self):
+        """Fire the employee with lowest productivity (skill * work_hours / wage)."""
+        # Get all person agents that work for this firm
+        employees = [agent for agent in self.model.agents 
+                    if hasattr(agent, 'employer') and agent.employer == self]
+        
+        if not employees:
+            return  # No employees to fire
+        
+        # Calculate productivity for each employee
+        employee_productivity = []
+        
+        for person in employees:
+            # All employees in this firm will have the same skill type matching the firm type
+            # So we can directly use their skill_level
+            
+            # Get skill level   
+            skill_level = person.skill_level
+            
+            # Calculate productivity score
+            productivity = (skill_level * person.work_hours) / (person.wage + 1e-6)
+            employee_productivity.append((productivity, person))
+        
+        # Sort by productivity (lowest first)
+        employee_productivity.sort()
+        
+        # Fire the least productive employee
+        if employee_productivity:
+            _, person_to_fire = employee_productivity[0]
+            
+            # Update person's employment status
+            person_to_fire.employer = None
+            person_to_fire.wage = 0
+            person_to_fire.job_seeking = True
+            
+            print(f"Firm {self.unique_id} fired Person {person_to_fire.unique_id} with productivity {employee_productivity[0][0]}")
+
+    
+
+    def hire_new_employee(self):
+        """Hire a new employee with appropriate skills for this firm area."""
+        
+        # Define target skill mix ratios for each firm area
+        skill_mix = {
+            "technical": {"senior": 0.25, "mid": 0.60, "entry": 0.15},  # Engineering, IT, technical roles need more senior expertise
+            "creative": {"senior": 0.25, "mid": 0.45, "entry": 0.30},   # Design/arts benefit from fresh perspectives but need experienced guidance
+            "physical": {"senior": 0.10, "mid": 0.35, "entry": 0.55},   # Manufacturing/construction has more entry-level positions
+            "social": {"senior": 0.20, "mid": 0.50, "entry": 0.30},     # Management/teaching needs experienced leaders
+            "analytical": {"senior": 0.25, "mid": 0.55, "entry": 0.20}, # Finance/data analysis requires more expertise
+            "service": {"senior": 0.10, "mid": 0.40, "entry": 0.50},    # Service industry has more entry-level positions
+            "necessity": {"senior": 0.15, "mid": 0.25, "entry": 0.60}   # Basic goods production balanced between experience levels
+        }
+
+        # Get current employees and their levels
+        employees = [agent for agent in self.model.agents 
+                    if hasattr(agent, 'employer') and agent.employer == self]
+        
+        current_mix = {
+            "senior": 0,
+            "mid": 0, 
+            "entry": 0
+        }
+        
+        # Count current employees at each level
+        for emp in employees:
+            if emp.skill_level >= 70:
+                current_mix["senior"] += 1
+            elif emp.skill_level >= 40:
+                current_mix["mid"] += 1
+            else:
+                current_mix["entry"] += 1
+                
+        # Calculate percentages
+        total = len(employees) + 1  # Add 1 for new hire
+        target_mix = skill_mix.get(self.firm_area, skill_mix["necessity"])
+        
+        # Determine which level needs hiring to get closer to target mix
+        differences = {}
+        # Calculate the difference between target and current percentage for each level
+        for level in ["senior", "mid", "entry"]:
+            # Get current percentage of employees at this level (or 0 if no employees)
+            current_pct = current_mix[level] / total if total > 0 else 0
+            # Get target percentage for this level from skill_mix
+            target_pct = target_mix[level]
+            # Store how far we are from target (positive means we need more at this level)
+            differences[level] = target_pct - current_pct
+            
+        # Choose the level with the highest difference (most needed)
+        job_level = max(differences, key=differences.get)
+        
+        # Set minimum skill requirements based on level
+        min_skill_levels = {
+            "technical": {"senior": 80, "mid": 60, "entry": 40},
+            "creative": {"senior": 70, "mid": 50, "entry": 30}, 
+            "physical": {"senior": 60, "mid": 40, "entry": 10},
+            "social": {"senior": 70, "mid": 50, "entry": 30},
+            "analytical": {"senior": 80, "mid": 60, "entry": 30},
+            "service": {"senior": 60, "mid": 40, "entry": 20},
+            "necessity": {"senior": 50, "mid": 30, "entry": 10},
+            "luxury": {"senior": 70, "mid": 50, "entry": 30}
+        }
+        # Get minimum skill level for this level from firm type
+        # Example: if self.firm_type is "tech" and job_level is "senior":
+        # firm_levels = min_skill_levels["tech"] = {"senior": 0.8, "mid": 0.6, "entry": 0.4}
+        # min_skill_level = firm_levels["senior"] = 0.8
+        firm_levels = min_skill_levels.get(self.firm_area, min_skill_levels["necessity"])
+        min_skill_level = firm_levels[job_level]
+        
+        
+        # Find candidates meeting requirements
+        candidates = [agent for agent in self.model.agents 
+                    if hasattr(agent, 'job_seeking') and agent.job_seeking 
+                    and agent.skill_level >= min_skill_level]
+        
+        # If no qualified candidates, lower requirements slightly
+        if not candidates:
+            candidates = [agent for agent in self.model.agents 
+                        if hasattr(agent, 'job_seeking') and agent.job_seeking
+                        and agent.skill_level >= min_skill_level - 10]
+        
+        # Hire most qualified candidate
+        if candidates:
+            # Sort by skill level
+            candidates.sort(key=lambda p: p.skill_level, reverse=True)
+            person_to_hire = candidates[0]
+            
+            # Determine wage based on skill level and job level
+            base_wage = self.entry_wage * self.wage_multipliers[job_level]
+            skill_bonus = person_to_hire.skill_level * 0.03 * base_wage
+            offered_wage = base_wage + skill_bonus
+            
+            # Update person's employment status
+            person_to_hire.employer = self
+            person_to_hire.wage = offered_wage
+            person_to_hire.job_seeking = False
+            
+            print(f"Firm {self.unique_id} hired Person {person_to_hire.unique_id} as {job_level} level with skill {person_to_hire.skill_level:.2f}")
+
+
+    def calculate_total_wage_cost(self):
+        """Calculate the total wage costs by summing individual wages of all employees."""
+        # Get all employees
+        employees = [agent for agent in self.model.agents 
+                    if hasattr(agent, 'employer') and agent.employer == self]
+        
+        # Sum all wages
+        if employees:
+            total_wages = sum(emp.wage for emp in employees)
+            return total_wages
+        else:
+            # If no employees found, estimate based on entry wage and num_employees
+            return self.entry_wage * self.num_employees
 
     def step(self):
         """Execute one step of the firm's operations."""
@@ -180,9 +333,12 @@ class FirmAgent(mesa.Agent):
         produced_units = round(self.production_capacity * self.production_level)
         self.inventory += produced_units
 
-        # Calculate costs
-        self.costs = self.num_employees * self.average_wage + self.production_cost * produced_units
-        cost_per_unit = (self.costs / produced_units)
+        # Calculate costs using the sum of employee wages instead of average
+        wage_costs = self.calculate_total_wage_cost()
+        production_costs = self.production_cost * produced_units
+        self.costs = wage_costs + production_costs
+        
+        cost_per_unit = (self.costs / produced_units) if produced_units > 0 else 0
         self.product_price = cost_per_unit * (1 + self.profit_margin)
 
         # Sell products
@@ -192,7 +348,7 @@ class FirmAgent(mesa.Agent):
 
         # Profit
         self.profit = self.revenue - self.costs
-        self.revenue_per_employee = self.revenue / self.num_employees
+        self.revenue_per_employee = self.revenue / max(self.num_employees, 1) # Avoid division by zero
 
         '''
         if self.last_step_profit is None:
