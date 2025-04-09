@@ -101,10 +101,6 @@ def main():
         results_folder=output_results_folder
     )
 
-    """# Create time series for job levels
-    # Filter agent_data to only include rows with JobLevel not null
-    person_data = agent_data[~agent_data["JobLevel"].isna()]"""
-    
     # Create a job level distribution time series
     analysis.create_time_series_by_type(
         df=agent_data,
@@ -117,6 +113,36 @@ def main():
         grid=True,
         legend=True,
         filename="job_level_employment.png",
+        results_folder=output_results_folder
+    )
+
+    # Track profit margins over time for luxury vs necessity firms
+    analysis.create_time_series_by_type(
+        df=agent_data,
+        value_col="ProfitMargin",  
+        type_col="FirmType",     # Group by firm type (luxury vs necessity)
+        title="Average Profit Margins by Firm Type Over Time",
+        xlabel="Time Step",
+        ylabel="Profit Margin",
+        figsize=(12, 6),
+        grid=True,
+        legend=True,
+        filename="profit_margins_by_type.png",
+        results_folder=output_results_folder
+    )
+
+    # Track units produced by firm type over time
+    analysis.create_time_series_by_type(
+        df=agent_data,
+        value_col="ProducedUnits",  # This will need to be collected in the agent data
+        type_col="FirmType",     # Group by firm type
+        title="Units Produced by Firm Type Over Time",
+        xlabel="Time Step",
+        ylabel="Units Produced",
+        figsize=(12, 6),
+        grid=True,
+        legend=True,
+        filename="units_produced_by_type.png",
         results_folder=output_results_folder
     )
 

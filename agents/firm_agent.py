@@ -17,7 +17,7 @@ class FirmAgent(mesa.Agent):
         self.profit_margin = profit_margin
         self.production_level = production_level
         self.product_price = 0 # CHECK
-        self.production_cost = production_cost
+        self.production_cost = max(1.0, production_cost)  # Ensure minimum production cost
         self.firm_area = firm_area
         self.entry_wage = entry_wage
         self.wage_multipliers = {"entry": 1.0, "mid": 1.4, "senior": 2.0}
@@ -29,6 +29,7 @@ class FirmAgent(mesa.Agent):
         self.costs = 0
         self.profit = 0
         self.revenue_per_employee = 0
+        self.produced_units = 0  # Track units produced
         
 
         self.last_step_profit =  None # profit from the previous step
@@ -38,6 +39,7 @@ class FirmAgent(mesa.Agent):
         self.demand_history = []
         self.demand_history_length = 5  # how many steps to track
         self.average_demand = 0 # track average demand (will be calculated)
+        self.min_price = self.production_cost * 1.05  # Minimum 5% above production cost
     
 
     def receive_demand(self, units):
@@ -155,7 +157,8 @@ class FirmAgent(mesa.Agent):
 
         # Update product price
         cost_per_unit = self.costs / (produced_units + 1e-6)
-        self.product_price = max(cost_per_unit * (1 + self.profit_margin), 1.0)  # make sure price isn't lower than cost
+        calculated_price = cost_per_unit * (1 + self.profit_margin)
+        self.product_price = max(calculated_price, self.min_price)
 
     def adjust_employees(self):
         """Adjust number of employees based on revenue per employee."""
@@ -363,15 +366,15 @@ class FirmAgent(mesa.Agent):
     def step(self):
         """Execute one step of the firm's operations."""
         # Producing goods and adding them to the inventory
-        produced_units = round(self.production_capacity * self.production_level)
-        self.inventory += produced_units
+        self.produced_units = round(self.production_capacity * self.production_level)
+        self.inventory += self.produced_units
 
         # Calculate costs using the sum of employee wages instead of average
         wage_costs = self.calculate_total_wage_cost()
-        production_costs = self.production_cost * produced_units
+        production_costs = self.production_cost * self.produced_units
         self.costs = wage_costs + production_costs
         
-        cost_per_unit = (self.costs / produced_units) if produced_units > 0 else 0
+        cost_per_unit = (self.costs / self.produced_units) if self.produced_units > 0 else 0
         self.product_price = cost_per_unit * (1 + self.profit_margin)
 
         # Sell products
@@ -409,7 +412,7 @@ class FirmAgent(mesa.Agent):
         # self.last_step_profit = self.profit # Save this step's profit
 
         # Make adjustments
-        self.adjust_price(sold_units, produced_units)
+        self.adjust_price(sold_units, self.produced_units)
         self.adjust_production(sold_units)
         self.adjust_employees()
 

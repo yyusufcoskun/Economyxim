@@ -32,6 +32,8 @@ class EconomicSimulationModel(mesa.Model):
                 "ProductionCapacity": lambda a: getattr(a, "production_capacity", None),
                 "Revenue": lambda a: getattr(a, "revenue", None),
                 "Costs": lambda a: getattr(a, "costs", None),
+                "ProfitMargin": lambda a: getattr(a, "profit_margin", None),
+                "ProducedUnits": lambda a: getattr(a, "produced_units", None),
                 
 
                 # Household agent fields
