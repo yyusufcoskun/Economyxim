@@ -4,7 +4,7 @@ import pandas as pd
 
 
 class GovernmentAgent(mesa.Agent):
-    def __init__(self, model, reserves=170000000000, inflation_rate=39.05, unemployment_rate=8.4, GDP=118000000000000, yearly_tax_revenue=32828976453, yearly_public_spending=125367000000, interest_rate=0.425):
+    def __init__(self, model, reserves=170000000000, inflation_rate=39.05, unemployment_rate=8.4, GDP=118000000000000, yearly_tax_revenue=32828976453, yearly_public_spending=125367000000, interest_rate=42.5):
         super().__init__(model)
 
         # TODO I will model inflation after I do firm, because inflation occurs when aggregate demand exceeds aggregate supply. Then I can calculate the average price increase from firms to calculate inflation.
@@ -21,8 +21,8 @@ class GovernmentAgent(mesa.Agent):
 
 
     def step(self):
-        step_public_spending = self.yearly_public_spending/20
-        step_tax_revenue = self.yearly_tax_revenue/12
+        step_public_spending = self.yearly_public_spending/4
+        step_tax_revenue = self.yearly_tax_revenue/4
         self.reserves -= step_public_spending
         self.reserves += step_tax_revenue
         if self.reserves < 160000000000:

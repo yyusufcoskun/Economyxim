@@ -16,7 +16,7 @@ def main():
     output_data_folder = create_run_folder(run_name, base_path="data/saved_data")
     output_results_folder = create_run_folder(run_name, base_path="results")
 
-    model_data = save_model_data(model, output_data_folder) # As data grows, you're going to need to change this. Look at ChatGPT's response, search for "single flat CSV"
+    model_data = save_model_data(model, output_data_folder) # TODO As data grows, you're going to need to change this. Look at ChatGPT's response, search for "single flat CSV"
     agent_data = save_agent_data(model, output_data_folder)
     generate_summary_report(model, output_data_folder)
 
@@ -90,7 +90,7 @@ def main():
     analysis.create_time_series_by_type(
         df=agent_data,
         value_col="SkillLevel",
-        type_col="SkillType",  # Group by skill type
+        type_col="SkillType",  
         title="Average Skill Level by Skill Type Over Time",
         xlabel="Time Step",
         ylabel="Average Skill Level",
@@ -101,11 +101,10 @@ def main():
         results_folder=output_results_folder
     )
 
-    # Create a job level distribution time series
     analysis.create_time_series_by_type(
         df=agent_data,
         value_col="IsEmployed",  # 1 if employed, 0 if not
-        type_col="JobLevel",     # Group by job level
+        type_col="JobLevel",     
         title="Employment by Job Level Over Time",
         xlabel="Time Step",
         ylabel="Number Employed",
@@ -116,11 +115,10 @@ def main():
         results_folder=output_results_folder
     )
 
-    # Track profit margins over time for luxury vs necessity firms
     analysis.create_time_series_by_type(
         df=agent_data,
         value_col="ProfitMargin",  
-        type_col="FirmType",     # Group by firm type (luxury vs necessity)
+        type_col="FirmType",    
         title="Average Profit Margins by Firm Type Over Time",
         xlabel="Time Step",
         ylabel="Profit Margin",
@@ -131,11 +129,10 @@ def main():
         results_folder=output_results_folder
     )
 
-    # Track units produced by firm type over time
     analysis.create_time_series_by_type(
         df=agent_data,
-        value_col="ProducedUnits",  # This will need to be collected in the agent data
-        type_col="FirmType",     # Group by firm type
+        value_col="ProducedUnits",  
+        type_col="FirmType",    
         title="Units Produced by Firm Type Over Time",
         xlabel="Time Step",
         ylabel="Units Produced",

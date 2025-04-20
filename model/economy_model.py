@@ -29,7 +29,6 @@ class EconomicSimulationModel(mesa.Model):
                 "InventoryDemandRatio": lambda a: getattr(a, "inventory_demand_ratio", None),
                 "SellThroughRate": lambda a: getattr(a, "sell_through_rate", None),
                 "ProductionCost": lambda a: getattr(a, "production_cost", None),
-                "ProductionCapacity": lambda a: getattr(a, "production_capacity", None),
                 "Revenue": lambda a: getattr(a, "revenue", None),
                 "Costs": lambda a: getattr(a, "costs", None),
                 "ProfitMargin": lambda a: getattr(a, "profit_margin", None),
