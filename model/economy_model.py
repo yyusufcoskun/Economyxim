@@ -24,11 +24,10 @@ class EconomicSimulationModel(mesa.Model):
                 "RevenuePerEmployee": lambda a: getattr(a, "revenue_per_employee", None),
                 "ProductionLevel": lambda a: getattr(a, "production_level", None),
                 "NumEmployees": lambda a: getattr(a, "num_employees", None),
-                "EntryWage": lambda a: getattr(a, "entry_wage", None),
                 "DemandReceived": lambda a: getattr(a, "demand_received", None),
                 "InventoryDemandRatio": lambda a: getattr(a, "inventory_demand_ratio", None),
                 "SellThroughRate": lambda a: getattr(a, "sell_through_rate", None),
-                "ProductionCost": lambda a: getattr(a, "production_cost", None),
+                "ProductionCapacity": lambda a: getattr(a, "production_capacity", None),
                 "Revenue": lambda a: getattr(a, "revenue", None),
                 "Costs": lambda a: getattr(a, "costs", None),
                 "ProfitMargin": lambda a: getattr(a, "profit_margin", None),
@@ -39,7 +38,6 @@ class EconomicSimulationModel(mesa.Model):
                 "IncomeBracket": lambda a: getattr(a, "income_bracket", None),
                 "NumPeople": lambda a: getattr(a, "num_people", None),
                 "SpendRatio": lambda a: getattr(a, "spend_ratio", None),
-                "IncomeTaxRate": lambda a: getattr(a, "income_tax_rate", None),
                 "PostTaxIncome": lambda a: getattr(a, "total_income_posttax", None),
                 "HouseholdExpense": lambda a: getattr(a, "total_household_expense", None),
                 "HouseholdSavings": lambda a: getattr(a, "total_household_savings", None),
@@ -91,22 +89,6 @@ class EconomicSimulationModel(mesa.Model):
             entry_wage=[random.randint(18000, 22000) for _ in range(n_service)],
             num_employees=[random.randint(15, 50) for _ in range(n_service)],
             production_level=[random.uniform(0.6, 0.9) for _ in range(n_service)]
-        )
-
-        # Necessity goods - 30 firms
-        n_necessity = 30
-        FirmAgent.create_agents(
-            model=self,
-            n=n_necessity,
-            firm_type="necessity",
-            firm_area="necessity",
-            product=[f"Necessity_{i}" for i in range(n_necessity)],
-            production_capacity=[random.randint(500, 2000) for _ in range(n_necessity)],
-            profit_margin=0.15,
-            production_cost=[random.uniform(5.0, 15.0) for _ in range(n_necessity)],
-            entry_wage=[random.randint(25000, 35000) for _ in range(n_necessity)], 
-            num_employees=[random.randint(3, 12) for _ in range(n_necessity)],
-            production_level=[random.uniform(0.6, 0.9) for _ in range(n_necessity)]
         )
         
         # --- LUXURY FIRMS ---

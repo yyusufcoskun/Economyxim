@@ -233,6 +233,18 @@ class FirmAgent(mesa.Agent):
             "necessity": {"senior": 0.15, "mid": 0.25, "entry": 0.60}   # Basic goods production balanced between experience levels
         }
 
+        # Define skill type matching for each firm area (one-to-one mapping)
+        skill_type_matching = {
+            "technical": "technical",
+            "creative": "creative",
+            "physical": "physical", 
+            "social": "social",
+            "analytical": "analytical",
+            "service": "service",
+            "necessity": "physical",  # Necessity firms primarily need physical skills
+            "luxury": "creative"      # Luxury firms primarily need creative skills
+        }
+
         # Get current employees and their levels
         employees = [agent for agent in self.model.agents 
                     if hasattr(agent, 'employer') and agent.employer == self]
@@ -298,14 +310,19 @@ class FirmAgent(mesa.Agent):
         # Get minimum skill level for this level from firm area
         min_skill_level = firm_levels[job_level]
         
-        # Find candidates meeting requirements, excluding previous employees
-        candidates = [agent for agent in self.model.agents 
-                    if hasattr(agent, 'job_seeking') and agent.job_seeking 
-                    and agent.skill_level >= min_skill_level
-                    and agent.unique_id not in self.previous_employees]
+        # Get the matching skill type for this firm area
+        matching_skill_type = skill_type_matching.get(self.firm_area, "physical")
         
-        # If no qualified candidates who haven't worked here before, lower requirements slightly 
-        if not candidates:
+        # Find candidates with matching skill type
+        matching_candidates = [agent for agent in self.model.agents 
+                      if hasattr(agent, 'job_seeking') and agent.job_seeking 
+                      and agent.skill_level >= min_skill_level
+                      and hasattr(agent, 'skill_type') and agent.skill_type == matching_skill_type
+                      and agent.unique_id not in self.previous_employees]
+        
+        # If no matching candidates, look for any job-seeking agent with sufficient skill
+        candidates = matching_candidates
+        if not matching_candidates:
             candidates = [agent for agent in self.model.agents 
                         if hasattr(agent, 'job_seeking') and agent.job_seeking
                         and agent.skill_level >= min_skill_level - 10
