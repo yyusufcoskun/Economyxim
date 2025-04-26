@@ -69,7 +69,7 @@ class EconomicSimulationModel(mesa.Model):
             product=[f"Physical_{i}" for i in range(n_physical)],
             production_capacity=[random.randint(4000, 9000) for _ in range(n_physical)],
             profit_margin=0.12,
-            production_cost=[random.uniform(1.8, 4.5) for _ in range(n_physical)],
+            production_cost=[random.uniform(1.8, 3.5) for _ in range(n_physical)],
             entry_wage=[random.randint(20000, 25000) for _ in range(n_physical)],
             num_employees=[random.randint(30, 120) for _ in range(n_physical)],
             production_level=[random.uniform(0.7, 1) for _ in range(n_physical)]
@@ -103,7 +103,7 @@ class EconomicSimulationModel(mesa.Model):
             product=[f"Technical_{i}" for i in range(n_technical)],
             production_capacity=[random.randint(300, 700) for _ in range(n_technical)],
             profit_margin=0.35,
-            production_cost=[random.uniform(50.0, 200.0) for _ in range(n_technical)],
+            production_cost=[random.uniform(50.0, 150.0) for _ in range(n_technical)],
             entry_wage=[random.randint(60000, 75000) for _ in range(n_technical)],
             num_employees=[random.randint(10, 80) for _ in range(n_technical)],
             production_level=[random.uniform(0.5, 0.9) for _ in range(n_technical)]
@@ -119,7 +119,7 @@ class EconomicSimulationModel(mesa.Model):
             product=[f"Creative_{i}" for i in range(n_creative)],
             production_capacity=[random.randint(200, 500) for _ in range(n_creative)],
             profit_margin=0.45,
-            production_cost=[random.uniform(40.0, 100.0) for _ in range(n_creative)],
+            production_cost=[random.uniform(40.0, 80.0) for _ in range(n_creative)],
             entry_wage=[random.randint(45000, 60000) for _ in range(n_creative)],
             num_employees=[random.randint(5, 30) for _ in range(n_creative)],
             production_level=[random.uniform(0.4, 0.8) for _ in range(n_creative)]
@@ -135,7 +135,7 @@ class EconomicSimulationModel(mesa.Model):
             product=[f"Social_{i}" for i in range(n_social)],
             production_capacity=[random.randint(150, 400) for _ in range(n_social)],
             profit_margin=0.40,
-            production_cost=[random.uniform(60.0, 120.0) for _ in range(n_social)],
+            production_cost=[random.uniform(60.0, 100.0) for _ in range(n_social)],
             entry_wage=[random.randint(50000, 65000) for _ in range(n_social)],
             num_employees=[random.randint(8, 40) for _ in range(n_social)],
             production_level=[random.uniform(0.5, 0.9) for _ in range(n_social)]

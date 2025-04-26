@@ -9,8 +9,8 @@ import os
 def main():
     model = EconomicSimulationModel()
     run_name = input("Enter a name for this simulation run: ")
-    # Run the model for 150 steps.
-    for _ in range(150):
+    # Run the model for 60 steps.
+    for _ in range(60):
         model.step()
     
     output_data_folder = create_run_folder(run_name, base_path="data/saved_data")

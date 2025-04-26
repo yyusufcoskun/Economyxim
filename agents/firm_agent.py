@@ -230,7 +230,6 @@ class FirmAgent(mesa.Agent):
             "social": {"senior": 0.20, "mid": 0.50, "entry": 0.30},     # Management/teaching needs experienced leaders
             "analytical": {"senior": 0.25, "mid": 0.55, "entry": 0.20}, # Finance/data analysis requires more expertise
             "service": {"senior": 0.10, "mid": 0.40, "entry": 0.50},    # Service industry has more entry-level positions
-            "necessity": {"senior": 0.15, "mid": 0.25, "entry": 0.60}   # Basic goods production balanced between experience levels
         }
 
         # Define skill type matching for each firm area (one-to-one mapping)
@@ -241,8 +240,6 @@ class FirmAgent(mesa.Agent):
             "social": "social",
             "analytical": "analytical",
             "service": "service",
-            "necessity": "physical",  # Necessity firms primarily need physical skills
-            "luxury": "creative"      # Luxury firms primarily need creative skills
         }
 
         # Get current employees and their levels
@@ -267,8 +264,6 @@ class FirmAgent(mesa.Agent):
             "social": {"senior": 70, "mid": 50, "entry": 30},
             "analytical": {"senior": 80, "mid": 60, "entry": 30},
             "service": {"senior": 60, "mid": 40, "entry": 20},
-            "necessity": {"senior": 50, "mid": 30, "entry": 10},
-            "luxury": {"senior": 70, "mid": 50, "entry": 30}
         }
         
         # Get thresholds for this firm area
@@ -402,29 +397,6 @@ class FirmAgent(mesa.Agent):
         # Profit
         self.profit = self.revenue - self.costs
         self.revenue_per_employee = self.revenue / max(self.num_employees, 1) # Avoid division by zero
-
-        '''
-        if self.last_step_profit is None:
-            self.last_step_profit = self.profit
-            
-        # Take action based on profit change
-        if self.last_step_profit < self.profit:
-            # Deciding which action to take
-            if self.inventory > self.demand_received:
-                self.adjust_production()  # Reduce oversupply
-            elif self.product_price > 1.5 * self.production_cost:
-                self.adjust_price()  # Price is too high, drop it
-            else:
-                self.adjust_employees()  # Last resort: layoff
-        else: # Profit is growing, increase 
-            if self.demand_received > self.inventory:
-                self.adjust_production()
-            elif self.product_price < 1.5 * self.production_cost:
-                self.adjust_price()
-            else:
-                self.adjust_employees()
-        '''
-        
 
         # self.last_step_profit = self.profit # Save this step's profit
 

@@ -29,7 +29,7 @@ class PersonAgent(mesa.Agent):
         self.work_hours = work_hours
         
         # Generate a more realistic skill distribution (normal distribution centered around 40-60)
-        self.skill_level = min(100, max(1, random.normalvariate(50, 15)))  # Normal distribution with mean 50, std 15
+        self.skill_level = min(100, max(1, random.normalvariate(45, 20)))  # Normal distribution with mean 50, std 15
         
         # Job level (senior, mid, entry) - will be set when hired
         self.job_level = None
@@ -38,7 +38,7 @@ class PersonAgent(mesa.Agent):
         self.study_cooldown = 0  # Track remaining study period when person stops looking
         
         # Initial skill improvement rate (0.2% per step)
-        self.skill_improvement_rate = 0.002
+        self.skill_improvement_rate = 0.001
         
     def step(self):
         # Improve skills if employed
