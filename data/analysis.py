@@ -333,6 +333,7 @@ def create_time_series_by_type(
     df: pd.DataFrame,
     value_col: str,
     type_col: str = "FirmType",
+    aggfunc: Union[str, callable] = "mean",
     filename: str = "time_series.png",
     results_folder: Optional[str] = None,
     title: Optional[str] = None,
@@ -354,6 +355,8 @@ def create_time_series_by_type(
         Column containing values to plot
     type_col : str
         Column containing agent types to group by
+    aggfunc : str or callable
+        Aggregation function ('mean', 'sum', etc.) used for pivot_table
     filename : str
         Output filename
     results_folder : str, optional
@@ -388,17 +391,20 @@ def create_time_series_by_type(
         values=value_col,
         index="Step",
         columns=type_col,
-        aggfunc="mean"
+        aggfunc=aggfunc
     )
+
+    # Determine ylabel if not provided, considering aggfunc
+    default_ylabel = f"Average {value_col}" if aggfunc == "mean" else f"Total {value_col}"
 
     # Create the plot
     create_plot(
         df=values_by_type,
         plot_type="line",
         columns=values_by_type.columns.tolist(),
-        title=title or f"Average {value_col} by {type_col} Over Time",
+        title=title or f"{default_ylabel} by {type_col} Over Time",
         xlabel=xlabel,
-        ylabel=ylabel or f"Average {value_col}",
+        ylabel=ylabel or default_ylabel,
         figsize=figsize,
         grid=grid,
         legend=legend,

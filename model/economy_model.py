@@ -59,7 +59,7 @@ class EconomicSimulationModel(mesa.Model):
         
         # --- NECESSITY FIRMS ---
         
-        # Physical firms (manufacturing, construction, farming) - 35 firms
+        # Physical firms (manufacturing, construction, farming) - 25 firms
         n_physical = 25
         FirmAgent.create_agents(
             model=self,
@@ -70,12 +70,12 @@ class EconomicSimulationModel(mesa.Model):
             production_capacity=[random.randint(4000, 9000) for _ in range(n_physical)],
             profit_margin=0.12,
             production_cost=[random.uniform(1.8, 3.5) for _ in range(n_physical)],
-            entry_wage=[random.randint(20000, 25000) for _ in range(n_physical)],
+            entry_wage=[random.randint(60000, 75000) for _ in range(n_physical)],
             num_employees=[random.randint(30, 120) for _ in range(n_physical)],
             production_level=[random.uniform(0.7, 1) for _ in range(n_physical)]
         )
         
-        # Service firms (retail, food service, basic services) - 40 firms
+        # Service firms (retail, food service, basic services) - 30 firms
         n_service = 30
         FirmAgent.create_agents(
             model=self,
@@ -86,14 +86,14 @@ class EconomicSimulationModel(mesa.Model):
             production_capacity=[random.randint(3000, 7000) for _ in range(n_service)],
             profit_margin=0.09,
             production_cost=[random.uniform(1.5, 3.5) for _ in range(n_service)],
-            entry_wage=[random.randint(18000, 22000) for _ in range(n_service)],
+            entry_wage=[random.randint(54000, 66000) for _ in range(n_service)],
             num_employees=[random.randint(15, 50) for _ in range(n_service)],
             production_level=[random.uniform(0.6, 0.9) for _ in range(n_service)]
         )
         
         # --- LUXURY FIRMS ---
         
-        # Technical firms (tech companies, engineering) - 20 firms
+        # Technical firms (tech companies, engineering) - 10 firms
         n_technical = 10
         FirmAgent.create_agents(
             model=self,
@@ -104,12 +104,12 @@ class EconomicSimulationModel(mesa.Model):
             production_capacity=[random.randint(300, 700) for _ in range(n_technical)],
             profit_margin=0.35,
             production_cost=[random.uniform(50.0, 150.0) for _ in range(n_technical)],
-            entry_wage=[random.randint(60000, 75000) for _ in range(n_technical)],
+            entry_wage=[random.randint(180000, 225000) for _ in range(n_technical)],
             num_employees=[random.randint(10, 80) for _ in range(n_technical)],
             production_level=[random.uniform(0.5, 0.9) for _ in range(n_technical)]
         )
         
-        # Creative firms (design, arts, media) - 15 firms
+        # Creative firms (design, arts, media) - 5 firms
         n_creative = 5
         FirmAgent.create_agents(
             model=self,
@@ -120,12 +120,12 @@ class EconomicSimulationModel(mesa.Model):
             production_capacity=[random.randint(200, 500) for _ in range(n_creative)],
             profit_margin=0.45,
             production_cost=[random.uniform(40.0, 80.0) for _ in range(n_creative)],
-            entry_wage=[random.randint(45000, 60000) for _ in range(n_creative)],
+            entry_wage=[random.randint(135000, 180000) for _ in range(n_creative)],
             num_employees=[random.randint(5, 30) for _ in range(n_creative)],
             production_level=[random.uniform(0.4, 0.8) for _ in range(n_creative)]
         )
         
-        # Social firms (management consulting, education) - 10 firms
+        # Social firms (management consulting, education) - 5 firms
         n_social = 5
         FirmAgent.create_agents(
             model=self,
@@ -136,12 +136,12 @@ class EconomicSimulationModel(mesa.Model):
             production_capacity=[random.randint(150, 400) for _ in range(n_social)],
             profit_margin=0.40,
             production_cost=[random.uniform(60.0, 100.0) for _ in range(n_social)],
-            entry_wage=[random.randint(50000, 65000) for _ in range(n_social)],
+            entry_wage=[random.randint(150000, 195000) for _ in range(n_social)],
             num_employees=[random.randint(8, 40) for _ in range(n_social)],
             production_level=[random.uniform(0.5, 0.9) for _ in range(n_social)]
         )
         
-        # Analytical firms (finance, data analysis) - 15 firms
+        # Analytical firms (finance, data analysis) - 5 firms
         n_analytical = 5
         FirmAgent.create_agents(
             model=self,
@@ -152,7 +152,7 @@ class EconomicSimulationModel(mesa.Model):
             production_capacity=[random.randint(100, 350) for _ in range(n_analytical)],
             profit_margin=0.50,
             production_cost=[random.uniform(80.0, 150.0) for _ in range(n_analytical)],
-            entry_wage=[random.randint(65000, 85000) for _ in range(n_analytical)],
+            entry_wage=[random.randint(165000, 215000) for _ in range(n_analytical)],
             num_employees=[random.randint(5, 25) for _ in range(n_analytical)],
             production_level=[random.uniform(0.6, 0.9) for _ in range(n_analytical)]
         )
@@ -163,7 +163,6 @@ class EconomicSimulationModel(mesa.Model):
             model=self,
             n=n_households,
             num_people=[random.randint(1, 5) for _ in range(n_households)],
-            spend_ratio=[round(random.uniform(0.4, 1.0), 2) for _ in range(n_households)],
             income_tax_rate=0.15  # TODO: Same for all for now, so one value is fine
         )
 

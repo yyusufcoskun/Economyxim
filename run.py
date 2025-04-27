@@ -112,7 +112,8 @@ def main():
         grid=True,
         legend=True,
         filename="job_level_employment.png",
-        results_folder=output_results_folder
+        results_folder=output_results_folder,
+        aggfunc="sum"
     )
 
     analysis.create_time_series_by_type(
