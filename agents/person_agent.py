@@ -41,6 +41,7 @@ class PersonAgent(mesa.Agent):
         self.skill_improvement_rate = 0.001
         
     def step(self):
+        '''
         # Improve skills if employed
         if self.employer is not None:
             self.skill_level = min(100, self.skill_level * (1 + self.skill_improvement_rate))
@@ -67,4 +68,5 @@ class PersonAgent(mesa.Agent):
             # If employed, should not be job seeking
             if self.employer is not None:
                 self.job_seeking = False
+        '''
 

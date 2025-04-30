@@ -20,6 +20,22 @@ def main():
     agent_data = save_agent_data(model, output_data_folder)
     generate_summary_report(model, output_data_folder)
 
+    # Create income bracket distribution chart
+    analysis.create_time_series_by_type(
+        df=agent_data,
+        value_col="AgentID",
+        type_col="IncomeBracket",
+        title="Number of Households by Income Bracket Over Time",
+        xlabel="Time Step",
+        ylabel="Number of Households",
+        figsize=(12, 6),
+        grid=True,
+        legend=True,
+        filename="household_income_brackets.png",
+        results_folder=output_results_folder,
+        aggfunc="count"
+    )
+
     analysis.create_distribution_plot(
         df=agent_data,
         groupby_col="FirmType",
@@ -76,6 +92,19 @@ def main():
 
     analysis.create_time_series_by_type(
         df=agent_data,
+        value_col="Revenue",
+        title="Average Revenue Levels by Firm Type Over Time",
+        xlabel="Time Step",
+        ylabel="Average Revenue",
+        figsize=(12, 6),
+        grid=True,
+        legend=True,
+        filename="firm_revenue_levels.png",
+        results_folder=output_results_folder
+    )
+
+    analysis.create_time_series_by_type(
+        df=agent_data,
         value_col="ProductPrice",
         title="Average Product Price Levels by Firm Type Over Time",
         xlabel="Time Step",
@@ -118,15 +147,15 @@ def main():
 
     analysis.create_time_series_by_type(
         df=agent_data,
-        value_col="ProfitMargin",  
+        value_col="Markup",  
         type_col="FirmType",    
-        title="Average Profit Margins by Firm Type Over Time",
+        title="Average Markup by Firm Type Over Time",
         xlabel="Time Step",
-        ylabel="Profit Margin",
+        ylabel="Markup",
         figsize=(12, 6),
         grid=True,
         legend=True,
-        filename="profit_margins_by_type.png",
+        filename="markup_by_type.png",
         results_folder=output_results_folder
     )
 
@@ -141,6 +170,20 @@ def main():
         grid=True,
         legend=True,
         filename="units_produced_by_type.png",
+        results_folder=output_results_folder
+    )
+
+    analysis.create_time_series_by_type(
+        df=agent_data,
+        value_col="ProductionLevel",  
+        type_col="FirmType",    
+        title="Production Level by Firm Type Over Time",
+        xlabel="Time Step",
+        ylabel="Production Level",
+        figsize=(12, 6),
+        grid=True,
+        legend=True,
+        filename="production_level_by_type.png",
         results_folder=output_results_folder
     )
 

@@ -82,10 +82,12 @@ class HouseholdAgent(mesa.Agent):
 
     def _calculate_cost_and_buy(self, firm_category, target_spend):
         """
-        Calculate cost and buy goods from the cheapest firm in a category.
+        Calculate cost and buy goods from a firm in a category.
         
         Used for MANDATORY necessity spending that households must make regardless
         of their financial situation.
+        - Low income households always look for the cheapest firms
+        - Middle and high income households randomly select firms
         
         Args:
             firm_category: The type of firm to buy from
@@ -102,7 +104,16 @@ class HouseholdAgent(mesa.Agent):
         ]
         print(f"[DEBUG] Household {self.unique_id} found {len(firms_in_category)} {firm_category} firms with price > 0")
         
-        chosen_firm = self._get_cheapest_firm(firm_category)
+        # Select firm based on income bracket
+        chosen_firm = None
+        
+        if hasattr(self, 'income_bracket') and self.income_bracket in ["middle", "high"]:
+            # Middle and high income households select random firms
+            if firms_in_category:
+                chosen_firm = random.choice(firms_in_category)
+        else:
+            # Low income households look for the cheapest options
+            chosen_firm = self._get_cheapest_firm(firm_category)
         
         if chosen_firm is None:
             print(f"[DEBUG] Household {self.unique_id} couldn't find any {firm_category} firms to buy from")
@@ -156,7 +167,17 @@ class HouseholdAgent(mesa.Agent):
         
         # Spend on each chosen luxury type
         for l_type in chosen_luxury_types:
+            '''
+            # Previous approach: Get cheapest firm
             chosen_firm = self._get_cheapest_firm(l_type)
+            '''
+            matching_firms = [firm for firm in self.model.agents 
+                            if hasattr(firm, 'firm_area') and firm.firm_area == l_type]
+            
+            if not matching_firms:
+                continue
+                
+            chosen_firm = random.choice(matching_firms)
             
             if chosen_firm is None:
                 continue
@@ -231,10 +252,10 @@ class HouseholdAgent(mesa.Agent):
             pass
         elif self.income_bracket == "middle" and remaining_budget > 0:
             # Middle income: spend 50-100% of remaining budget on luxuries
-            luxury_spent = self._spend_on_luxuries(remaining_budget, (0.5, 1.0))
+            luxury_spent = self._spend_on_luxuries(remaining_budget, (1.0, 1.0))
         elif self.income_bracket == "high" and remaining_budget > 0:
             # High income: spend 80-100% of remaining budget on luxuries
-            luxury_spent = self._spend_on_luxuries(remaining_budget, (0.8, 1.0))
+            luxury_spent = self._spend_on_luxuries(remaining_budget, (1.0, 1.0))
         
         # ---------- UPDATE FINANCIAL METRICS ----------
         # Total expenses = necessities + luxuries

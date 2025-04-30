@@ -5,7 +5,7 @@ import random
 
 
 class FirmAgent(mesa.Agent):
-    def __init__(self, model, product, production_capacity, profit_margin, 
+    def __init__(self, model, product, production_capacity, markup, 
                  production_cost, entry_wage, num_employees, 
                  firm_type, firm_area, production_level=1):
         super().__init__(model)
@@ -14,13 +14,13 @@ class FirmAgent(mesa.Agent):
         self.product = product
         self.firm_type = firm_type
         self.production_capacity = production_capacity
-        self.profit_margin = profit_margin
+        self.markup = markup
         self.production_level = production_level
         
         self.production_cost = max(1.0, production_cost)  # Ensure minimum production cost
         
         # Initialize with a non-zero price based on production cost and profit margin
-        self.product_price = self.production_cost * (1 + profit_margin)
+        self.product_price = self.production_cost * (1 + markup)
         print(f"[DEBUG] Firm {self.unique_id} ({firm_type}/{firm_area}) initialized with price: {self.product_price:.2f}")
         
         self.firm_area = firm_area
@@ -63,19 +63,13 @@ class FirmAgent(mesa.Agent):
         else:
             recent_trend = 0
 
-        # Target inventory based on weighted average demand
-        if self.firm_type == "necessity":
-            # Necessity firms keep more inventory
-            target_inventory = self.average_demand * 1.5
-        else:
-            # Luxury firms keep less inventory
-            target_inventory = self.average_demand * 1.1
+        target_inventory = self.average_demand * 1.1
 
         # Adjust target based on trend
         if recent_trend > 0.1:  # Growing demand
-            target_inventory *= 1.2
+            target_inventory *= 1.1
         elif recent_trend < -0.1:  # Shrinking demand
-            target_inventory *= 0.8
+            target_inventory *= 0.9
 
         # Calculate how far we are from target
         inventory_gap = target_inventory - self.inventory
@@ -83,7 +77,7 @@ class FirmAgent(mesa.Agent):
         # Adjust production level based on gap
         if inventory_gap > 0:  # Need more inventory
             if self.inventory < self.average_demand:  # Very low inventory
-                self.production_level *= 1.3
+                self.production_level *= 1.2
             else:  # Moderate increase
                 self.production_level *= 1.1
         else:  # Too much inventory
@@ -95,7 +89,7 @@ class FirmAgent(mesa.Agent):
         # Keep production level within bounds
         self.production_level = min(max(self.production_level, 0.1), 1.0)
 
-    def adjust_price(self, sold_units, produced_units):
+    def adjust_price(self, sold_units, produced_units, cost_per_unit):
         """Adjust price based on market conditions and demand trends."""
         if produced_units == 0:
             return
@@ -149,33 +143,36 @@ class FirmAgent(mesa.Agent):
         elif long_term_trend > 0.1:  # Sustained growth
             market_pressure += 0.1
 
+        # Cap market_pressure between -1 and 1
+        market_pressure = max(-1.0, min(market_pressure, 1.0))
+
         # Apply market pressure to profit margin with price stickiness
         # Make price decreases more resistant than price increases (downward rigidity)
         if market_pressure < 0:
             # When pressure is to decrease prices, dampen the effect (stickiness)
-            stickiness_factor = 0.2  # Only apply 20% of the downward pressure
-            price_adjustment = 1.0 + (market_pressure * stickiness_factor)
+            stickiness_factor = 0.7  # Only apply 70% of the downward pressure
+            markup_change = market_pressure * 0.1 * stickiness_factor
         else:
             #TODO When pressure is to increase prices, keep 70% of effect because I need to make inflation still
-            price_adjustment = 1.0 + market_pressure*0.7
-            
-        self.profit_margin *= price_adjustment
-
+            markup_change = market_pressure*0.1
+        
+        self.markup += markup_change
+        self.markup = max(0.01, self.markup)
+        
         '''
         # make sure profit margin stays realistic
         if self.firm_type == "luxury":
-            self.profit_margin = max(min(self.profit_margin, 0.5), 0.2)  # 20-50% margin
+            self.markup = max(min(self.markup, 0.5), 0.2)  # 20-50% margin
         else:  # necessity
-            self.profit_margin = max(min(self.profit_margin, 0.25), 0.05)  # 5-25% margin
+            self.markup = max(min(self.markup, 0.25), 0.05)  # 5-25% margin
         '''
 
         # Update product price
-        cost_per_unit = self.costs / (produced_units + 1e-6)
         old_price = self.product_price
-        calculated_price = cost_per_unit * (1 + self.profit_margin)
+        calculated_price = cost_per_unit * (1 + self.markup)
         self.product_price = max(calculated_price, self.min_price)
         print(f"[DEBUG] Firm {self.unique_id} price calculation in adjust_price: costs: {self.costs:.2f}, produced: {produced_units}, " + 
-              f"cost_per_unit: {cost_per_unit:.2f}, profit_margin: {self.profit_margin:.2f}, " +
+              f"cost_per_unit: {cost_per_unit:.2f}, markup: {self.markup:.2f}, " +
               f"old price: {old_price:.2f}, new price: {self.product_price:.2f}")
 
     def adjust_employees(self):
@@ -186,12 +183,12 @@ class FirmAgent(mesa.Agent):
             return
 
         # Print debug values to see why firing isn't happening
-        print(f"[DEBUG] Firm {self.unique_id}: Last step rev/emp: {self.last_step_revenue_per_emp:.2f}, Current rev/emp: {self.revenue_per_employee:.2f}")
-        print(f"[DEBUG] Firm {self.unique_id}: Should fire? {self.last_step_revenue_per_emp > self.revenue_per_employee}")
+        #print(f"[DEBUG] Firm {self.unique_id}: Last step rev/emp: {self.last_step_revenue_per_emp:.2f}, Current rev/emp: {self.revenue_per_employee:.2f}")
+        #print(f"[DEBUG] Firm {self.unique_id}: Should fire? {self.last_step_revenue_per_emp > self.revenue_per_employee}")
 
         if self.last_step_revenue_per_emp > self.revenue_per_employee:
             # FIRING: fires least productive employee (hours*skill)
-            print(f"[DEBUG] Firm {self.unique_id} attempting to fire employee...")
+            #print(f"[DEBUG] Firm {self.unique_id} attempting to fire employee...")
             self.fire_least_productive()
             self.num_employees = max(1, self.num_employees - 1)
         else:
@@ -208,10 +205,10 @@ class FirmAgent(mesa.Agent):
                     if hasattr(agent, 'employer') and agent.employer == self]
         
         if not employees:
-            print(f"[DEBUG] Firm {self.unique_id}: No employees to fire.")
+            #print(f"[DEBUG] Firm {self.unique_id}: No employees to fire.")
             return  # No employees to fire
         
-        print(f"[DEBUG] Firm {self.unique_id}: Found {len(employees)} employees")
+       # print(f"[DEBUG] Firm {self.unique_id}: Found {len(employees)} employees")
         
         # Calculate productivity for each employee
         employee_productivity = []
@@ -242,9 +239,10 @@ class FirmAgent(mesa.Agent):
             person_to_fire.wage = 0
             person_to_fire.job_seeking = True
             
-            print(f"Firm {self.unique_id} fired Person {person_to_fire.unique_id} with job level {job_level} and productivity {employee_productivity[0][0]:.2f}")
+            #print(f"Firm {self.unique_id} fired Person {person_to_fire.unique_id} with job level {job_level} and productivity {employee_productivity[0][0]:.2f}")
         else:
-            print(f"[DEBUG] Firm {self.unique_id}: No employee productivity list generated.")
+            #print(f"[DEBUG] Firm {self.unique_id}: No employee productivity list generated.")
+            pass
 
     
 
@@ -387,7 +385,7 @@ class FirmAgent(mesa.Agent):
             # Set the job level
             person_to_hire.job_level = job_level
             
-            print(f"Firm {self.unique_id} hired Person {person_to_hire.unique_id} as {job_level} level with skill {person_to_hire.skill_level:.2f}")
+            #print(f"Firm {self.unique_id} hired Person {person_to_hire.unique_id} as {job_level} level with skill {person_to_hire.skill_level:.2f}")
 
 
     def calculate_total_wage_cost(self):
@@ -410,20 +408,12 @@ class FirmAgent(mesa.Agent):
         self.produced_units = round(self.production_capacity * self.production_level)
         self.inventory += self.produced_units
 
-        # Calculate costs using the sum of employee wages instead of average
         wage_costs = self.calculate_total_wage_cost()
         production_costs = self.production_cost * self.produced_units
         self.costs = wage_costs + production_costs
         
         # Ensure cost_per_unit is not zero to avoid zero prices
-        cost_per_unit = (self.costs / self.produced_units) if self.produced_units > 0 else self.production_cost
-        old_price = self.product_price
-        calculated_price = cost_per_unit * (1 + self.profit_margin)
-        self.product_price = max(calculated_price, self.min_price)  # Ensure we never go below minimum price
-        
-        print(f"[DEBUG] Firm {self.unique_id} price calculation: costs: {self.costs:.2f}, produced: {self.produced_units}, " + 
-              f"cost_per_unit: {cost_per_unit:.2f}, profit_margin: {self.profit_margin:.2f}, " +
-              f"old price: {old_price:.2f}, new price: {self.product_price:.2f}")
+        cost_per_unit = self.costs / (self.produced_units + 1e-6)
 
         # Sell products
         sold_units = min(self.demand_received, self.inventory)
@@ -435,26 +425,21 @@ class FirmAgent(mesa.Agent):
         
         # Print debug info before updating revenue_per_employee
         prev_revenue_per_emp = self.revenue_per_employee
-        print(f"[DEBUG] Firm {self.unique_id}: Revenue: {self.revenue:.2f}, Employees: {self.num_employees}")
-        print(f"[DEBUG] Firm {self.unique_id}: Before calculation, revenue_per_employee: {prev_revenue_per_emp:.2f}")
         
         # Update the revenue per employee
         self.revenue_per_employee = self.revenue / max(self.num_employees, 1) # Avoid division by zero
         
-        print(f"[DEBUG] Firm {self.unique_id}: After calculation, revenue_per_employee: {self.revenue_per_employee:.2f}")
         
         # The first step, initialize last_step_revenue_per_emp with current value
         if self.last_step_revenue_per_emp is None:
             self.last_step_revenue_per_emp = self.revenue_per_employee
-            print(f"[DEBUG] Firm {self.unique_id}: First step, initialized last_step_revenue_per_emp: {self.last_step_revenue_per_emp:.2f}")
         
         # Make adjustments
-        self.adjust_price(sold_units, self.produced_units)
+        self.adjust_price(sold_units, self.produced_units, cost_per_unit)
         self.adjust_production(sold_units)
         self.adjust_employees()
 
         # Update historical metrics
-        print(f"[DEBUG] Firm {self.unique_id}: Updating last_step_revenue_per_emp from {self.last_step_revenue_per_emp:.2f} to {self.revenue_per_employee:.2f}")
         self.last_step_revenue_per_emp = self.revenue_per_employee
 
         # Update demand history
