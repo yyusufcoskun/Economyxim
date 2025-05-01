@@ -86,7 +86,8 @@ class HouseholdAgent(mesa.Agent):
         
         Used for MANDATORY necessity spending that households must make regardless
         of their financial situation.
-        - All households look for the cheapest firms for necessities
+        - Low income households always look for the cheapest firms
+        - Middle and high income households mostly look for cheapest firms but sometimes randomly select
         
         Args:
             firm_category: The type of firm to buy from
@@ -103,8 +104,19 @@ class HouseholdAgent(mesa.Agent):
         ]
         print(f"[DEBUG] Household {self.unique_id} found {len(firms_in_category)} {firm_category} firms with price > 0")
         
-        # All households look for the cheapest options for necessities
-        chosen_firm = self._get_cheapest_firm(firm_category)
+        # Select firm based on income bracket
+        chosen_firm = None
+        
+        if hasattr(self, 'income_bracket') and self.income_bracket in ["middle", "high"]:
+            # Middle and high income households mostly randomly select firms but sometimes choose cheapest
+            if firms_in_category:
+                if random.random() < 0.35:  # 35% of the time choose cheapest
+                    chosen_firm = self._get_cheapest_firm(firm_category)
+                else:  # 65% of the time choose random
+                    chosen_firm = random.choice(firms_in_category)
+        else:
+            # Low income households always look for the cheapest options
+            chosen_firm = self._get_cheapest_firm(firm_category)
         
         if chosen_firm is None:
             print(f"[DEBUG] Household {self.unique_id} couldn't find any {firm_category} firms to buy from")
