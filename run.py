@@ -77,6 +77,21 @@ def main():
         results_folder=output_results_folder
     )
 
+    # Add new graph for total inventory
+    analysis.create_time_series_by_type(
+        df=agent_data,
+        value_col="Inventory",
+        title="Total Inventory by Firm Type Over Time",
+        xlabel="Time Step",
+        ylabel="Total Inventory",
+        figsize=(12, 6),
+        grid=True,
+        legend=True,
+        filename="firm_total_inventory_levels.png",
+        results_folder=output_results_folder,
+        aggfunc="sum"
+    )
+
     analysis.create_time_series_by_type(
         df=agent_data,
         value_col="Profit",
