@@ -158,7 +158,7 @@ class EconomicSimulationModel(mesa.Model):
         )
 
 
-        n_households = 2000
+        n_households = 2200
         HouseholdAgent.create_agents(
             model=self,
             n=n_households,

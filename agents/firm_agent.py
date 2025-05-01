@@ -65,12 +65,12 @@ class FirmAgent(mesa.Agent):
 
         target_inventory = self.average_demand * 1.1
 
-        # Adjust target based on trend
+        '''  # Adjust target based on trend
         if recent_trend > 0.1:  # Growing demand
             target_inventory *= 1.1
         elif recent_trend < -0.1:  # Shrinking demand
             target_inventory *= 0.9
-
+        '''
         # Calculate how far we are from target
         inventory_gap = target_inventory - self.inventory
         
@@ -124,11 +124,11 @@ class FirmAgent(mesa.Agent):
         elif inventory_demand_ratio < 0.5:  # demand is twice as much as inventory
             market_pressure += 0.2  # price wants to rise so that stock lasts
         elif inventory_demand_ratio < 0.2:  # demand is 5 times as much as inventory
-            market_pressure += 0.3
+            market_pressure += 0.4
 
         # Adjust market pressure based on sales performance
         if sell_through_rate < 0.4:  # poor sales
-            market_pressure -= 0.2
+            market_pressure -= 0.3
         elif sell_through_rate > 0.9:
             market_pressure += 0.2
 
@@ -151,7 +151,7 @@ class FirmAgent(mesa.Agent):
         if market_pressure < 0:
             # When pressure is to decrease prices, dampen the effect (stickiness)
             stickiness_factor = 0.7  # Only apply 70% of the downward pressure
-            markup_change = market_pressure * 0.1 * stickiness_factor
+            markup_change = market_pressure * 0.1
         else:
             #TODO When pressure is to increase prices, keep 70% of effect because I need to make inflation still
             markup_change = market_pressure*0.1
