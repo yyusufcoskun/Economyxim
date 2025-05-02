@@ -49,7 +49,7 @@ class FirmAgent(mesa.Agent):
 
     def receive_demand(self, units):
         """Record demand received from households."""
-        print(f"[DEBUG] Firm {self.unique_id} ({self.firm_type}/{self.firm_area}) received demand for {units} units, price: {self.product_price:.2f}")
+        #print(f"[DEBUG] Firm {self.unique_id} ({self.firm_type}/{self.firm_area}) received demand for {units} units, price: {self.product_price:.2f}")
         self.demand_received += units  # used by household
 
     def adjust_production(self, sold_units):
@@ -171,9 +171,9 @@ class FirmAgent(mesa.Agent):
         old_price = self.product_price
         calculated_price = cost_per_unit * (1 + self.markup)
         self.product_price = max(calculated_price, self.min_price)
-        print(f"[DEBUG] Firm {self.unique_id} price calculation in adjust_price: costs: {self.costs:.2f}, produced: {produced_units}, " + 
-              f"cost_per_unit: {cost_per_unit:.2f}, markup: {self.markup:.2f}, " +
-              f"old price: {old_price:.2f}, new price: {self.product_price:.2f}")
+        #print(f"[DEBUG] Firm {self.unique_id} price calculation in adjust_price: costs: {self.costs:.2f}, produced: {produced_units}, " + 
+              #f"cost_per_unit: {cost_per_unit:.2f}, markup: {self.markup:.2f}, " +
+              #f"old price: {old_price:.2f}, new price: {self.product_price:.2f}")
 
     def adjust_employees(self):
         """Adjust number of employees based on revenue per employee."""

@@ -64,6 +64,36 @@ def main():
         results_folder=output_results_folder
     )
 
+    # Add GDP graph
+    analysis.create_plot(
+        df=model_data,
+        plot_type="line", 
+        columns=["GDP"],
+        title="Gross Domestic Product (GDP) Over Time",
+        xlabel="Time Step",
+        ylabel="GDP",
+        figsize=(12, 6),
+        grid=True,
+        legend=True,
+        filename="gdp.png",
+        results_folder=output_results_folder
+    )
+
+    # Add unemployment rate graph
+    analysis.create_plot(
+        df=model_data,
+        plot_type="line", 
+        columns=["Unemployment Rate"],
+        title="Unemployment Rate Over Time",
+        xlabel="Time Step",
+        ylabel="Unemployment Rate (%)",
+        figsize=(12, 6),
+        grid=True,
+        legend=True,
+        filename="unemployment_rate.png",
+        results_folder=output_results_folder
+    )
+
     analysis.create_time_series_by_type(
         df=agent_data,
         value_col="Inventory",
