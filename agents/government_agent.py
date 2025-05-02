@@ -17,9 +17,48 @@ class GovernmentAgent(mesa.Agent):
         self.yearly_tax_revenue = yearly_tax_revenue
         self.yearly_public_spending = yearly_public_spending
         self.interest_rate = interest_rate
+        
+        # Define tax brackets
+        self.tax_rates = {
+            "low": 0.15,    # 15% tax for low income
+            "middle": 0.20, # 20% tax for middle income
+            "high": 0.27    # 27% tax for high income
+        }
+        
+        # Track tax collection per step
+        self.step_tax_revenue = 0
 
 
-    
+    def _apply_tax_rates(self):
+        """
+        Apply the appropriate tax rate to each household based on their income bracket
+        and collect taxes into government reserves
+        """
+        self.step_tax_revenue = 0
+        
+        # Find all household agents
+        households = [agent for agent in self.model.agents if hasattr(agent, 'income_bracket')]
+        
+        for household in households:
+            # Set the appropriate tax rate based on income bracket
+            if hasattr(household, 'income_bracket'):
+                # Get the correct tax rate based on income bracket
+                tax_rate = self.tax_rates[household.income_bracket]
+                
+                # Calculate tax amount based on total income
+                tax_amount = household.total_household_income * tax_rate
+                
+                # Update household's tax rate for future income calculations
+                household.income_tax_rate = tax_rate
+                
+                # Collect taxes for government
+                self.step_tax_revenue += tax_amount
+        
+        # Debug tax collection
+        print(f"[TAX] Collected ${self.step_tax_revenue:.2f} in taxes from {len(households)} households")
+
+        return self.step_tax_revenue
+        
     def _calculate_unemployment_rate(self):
         """
         Calculate the unemployment rate based on the number of unemployed persons
@@ -46,7 +85,7 @@ class GovernmentAgent(mesa.Agent):
         
         # Quarterly GDP based on firm production
         step_gdp = total_production_value
-        print(f"DEBUG: ----- GDP: {step_gdp}")
+        #print(f"DEBUG: ----- GDP: {step_gdp}")
         # Yearly GDP estimation (multiplying quarterly by 4)
         # yearly_gdp = step_gdp * 4
         
@@ -69,12 +108,13 @@ class GovernmentAgent(mesa.Agent):
         """
 
     def step(self):
-        self._calculate_unemployment_rate()
+        # Apply tax rates and collect taxes
+        self.step_tax_revenue = self._apply_tax_rates()
+        self.reserves += self.step_tax_revenue
         
         step_public_spending = self.yearly_public_spending/4
-        step_tax_revenue = self.yearly_tax_revenue/4
         self.reserves -= step_public_spending
-        self.reserves += step_tax_revenue
+        
         if self.reserves < 160000000000:
             self.yearly_public_spending -= step_public_spending
             # print(f"RESERVES LOW: {str(self.reserves)} ----- Tax Revenue: {str(self.yearly_tax_revenue)} ----- DROPPING Public Spending Level: {str(self.yearly_public_spending)}.")
@@ -82,7 +122,8 @@ class GovernmentAgent(mesa.Agent):
             # print(f"RESERVES GOOD: {self.reserves} ----- Tax Revenue: {self.yearly_tax_revenue} ----- CURRENT Public Spending Level: {self.yearly_public_spending}" , end=" ")
             self.yearly_public_spending += step_public_spending 
             # print(f"----- NEW Public Spending Level: {self.yearly_public_spending}")
-
+        
+        self._calculate_unemployment_rate()
         self.GDP = self._calculate_gdp()
         
    

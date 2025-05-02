@@ -175,5 +175,13 @@ class EconomicSimulationModel(mesa.Model):
         
 
     def step(self):
-        self.datacollector.collect(self)        
-        self.agents.do("step")
+        # Collect data
+        self.datacollector.collect(self)
+        
+        # Force the government agent to step first to set tax rates
+        self.government_agent.step()
+        
+        # Then run all other agents
+        for agent in self.agents:
+            if agent != self.government_agent:
+                agent.step()
