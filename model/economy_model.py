@@ -66,7 +66,7 @@ class EconomicSimulationModel(mesa.Model):
         # --- NECESSITY FIRMS ---
         
         # Physical firms (manufacturing, construction, farming) - 25 firms
-        n_physical = 25
+        n_physical = 15
         FirmAgent.create_agents(
             model=self,
             n=n_physical,
@@ -82,7 +82,7 @@ class EconomicSimulationModel(mesa.Model):
         )
         
         # Service firms (retail, food service, basic services) - 30 firms
-        n_service = 30
+        n_service = 20
         FirmAgent.create_agents(
             model=self,
             n=n_service,
@@ -164,7 +164,7 @@ class EconomicSimulationModel(mesa.Model):
         )
 
 
-        n_households = 2200
+        n_households = 1000
         HouseholdAgent.create_agents(
             model=self,
             n=n_households,
