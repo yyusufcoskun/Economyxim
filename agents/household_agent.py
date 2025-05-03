@@ -73,9 +73,9 @@ class HouseholdAgent(mesa.Agent):
         # Sort by price (cheapest first)
         firms_in_category.sort(key=lambda f: f.product_price)
         
-        # Take cheapest 20% of firms
-        top_20_percent_count = max(1, int(len(firms_in_category) * 0.2))
-        cheapest_firms = firms_in_category[:top_20_percent_count]
+        # Take cheapest 25% of firms
+        top_25_percent_count = max(1, int(len(firms_in_category) * 0.25))
+        cheapest_firms = firms_in_category[:top_25_percent_count]
         
         # Choose one randomly from the cheapest firms
         return random.choice(cheapest_firms)
@@ -102,7 +102,7 @@ class HouseholdAgent(mesa.Agent):
             if hasattr(a, "firm_type") and a.firm_area == firm_category
             and hasattr(a, "product_price") and a.product_price > 0
         ]
-        #print(f"[DEBUG] Household {self.unique_id} found {len(firms_in_category)} {firm_category} firms with price > 0")
+       # print(f"[DEBUG] Household {self.unique_id} found {len(firms_in_category)} {firm_category} firms with price > 0")
         
         # Select firm based on income bracket
         chosen_firm = None
@@ -116,7 +116,7 @@ class HouseholdAgent(mesa.Agent):
             chosen_firm = self._get_cheapest_firm(firm_category)
         
         if chosen_firm is None:
-            print(f"[DEBUG] Household {self.unique_id} couldn't find any {firm_category} firms to buy from")
+            #print(f"[DEBUG] Household {self.unique_id} couldn't find any {firm_category} firms to buy from")
             return 0.0
             
         # Calculate how many units to buy based on the target spend
@@ -125,7 +125,7 @@ class HouseholdAgent(mesa.Agent):
             #print(f"[DEBUG] Household {self.unique_id} buying {units_to_buy} units from {firm_category} firm {chosen_firm.unique_id} at price {chosen_firm.product_price:.2f}")
         else:
             units_to_buy = 0
-            print(f"[DEBUG] Household {self.unique_id} found {firm_category} firm {chosen_firm.unique_id} with zero price")
+            #print(f"[DEBUG] Household {self.unique_id} found {firm_category} firm {chosen_firm.unique_id} with zero price")
             
         if units_to_buy > 0:
             actual_cost = units_to_buy * chosen_firm.product_price

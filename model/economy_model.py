@@ -13,10 +13,10 @@ class EconomicSimulationModel(mesa.Model):
         self.datacollector = mesa.DataCollector(
             model_reporters={
                 "Reserves": lambda m: m.government_agent.reserves,
-                "Yearly Public Spending": lambda m: m.government_agent.yearly_public_spending,
+                "Yearly Public Spending": lambda m: m.government_agent.step_public_spending,
                 "Unemployment Rate": lambda m: m.government_agent.unemployment_rate,
                 "GDP": lambda m: m.government_agent.GDP,
-                "Tax Revenue": lambda m: m.government_agent.yearly_tax_revenue,
+                "Tax Revenue": lambda m: m.government_agent.step_tax_revenue,
                 "Inflation Rate": lambda m: m.government_agent.inflation_rate,
                 "Interest Rate": lambda m: m.government_agent.interest_rate,
                 

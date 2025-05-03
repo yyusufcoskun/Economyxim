@@ -4,7 +4,7 @@ import pandas as pd
 
 
 class GovernmentAgent(mesa.Agent):
-    def __init__(self, model, reserves=170000000000, inflation_rate=39.05, unemployment_rate=8.4, yearly_tax_revenue=32828976453, yearly_public_spending=125367000000, interest_rate=42.5):
+    def __init__(self, model, reserves=5439372030600, inflation_rate=39.05, unemployment_rate=8.4, yearly_public_spending=439372030600, interest_rate=42.5):
         super().__init__(model)
 
         # TODO I will model inflation after I do firm, because inflation occurs when aggregate demand exceeds aggregate supply. Then I can calculate the average price increase from firms to calculate inflation.
@@ -14,8 +14,9 @@ class GovernmentAgent(mesa.Agent):
         self.inflation_rate = inflation_rate
         self.unemployment_rate = unemployment_rate
         self.GDP = 0
-        self.yearly_tax_revenue = yearly_tax_revenue
+        self.step_tax_revenue = 0
         self.yearly_public_spending = yearly_public_spending
+        self.step_public_spending = yearly_public_spending/4
         self.interest_rate = interest_rate
         
         # Define tax brackets
@@ -29,7 +30,7 @@ class GovernmentAgent(mesa.Agent):
         self.step_tax_revenue = 0
 
 
-    def _apply_tax_rates(self):
+    def _collect_taxes(self):
         """
         Apply the appropriate tax rate to each household based on their income bracket
         and collect taxes into government reserves
@@ -55,7 +56,7 @@ class GovernmentAgent(mesa.Agent):
                 self.step_tax_revenue += tax_amount
         
         # Debug tax collection
-        print(f"[TAX] Collected ${self.step_tax_revenue:.2f} in taxes from {len(households)} households")
+        print(f"[TAX] Collected ₺{self.step_tax_revenue:.2f} in taxes from {len(households)} households")
 
         return self.step_tax_revenue
         
@@ -109,18 +110,16 @@ class GovernmentAgent(mesa.Agent):
 
     def step(self):
         # Apply tax rates and collect taxes
-        self.step_tax_revenue = self._apply_tax_rates()
+        self.step_tax_revenue = self._collect_taxes()
         self.reserves += self.step_tax_revenue
-        
-        step_public_spending = self.yearly_public_spending/4
-        self.reserves -= step_public_spending
+        self.reserves -= self.step_public_spending
         
         if self.reserves < 160000000000:
-            self.yearly_public_spending -= step_public_spending
+            self.step_public_spending *= 0.8
             # print(f"RESERVES LOW: {str(self.reserves)} ----- Tax Revenue: {str(self.yearly_tax_revenue)} ----- DROPPING Public Spending Level: {str(self.yearly_public_spending)}.")
         else:
             # print(f"RESERVES GOOD: {self.reserves} ----- Tax Revenue: {self.yearly_tax_revenue} ----- CURRENT Public Spending Level: {self.yearly_public_spending}" , end=" ")
-            self.yearly_public_spending += step_public_spending 
+            self.step_public_spending *= 1.1
             # print(f"----- NEW Public Spending Level: {self.yearly_public_spending}")
         
         self._calculate_unemployment_rate()

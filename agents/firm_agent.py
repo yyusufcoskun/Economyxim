@@ -74,7 +74,7 @@ class FirmAgent(mesa.Agent):
         # Calculate how far we are from target
         inventory_gap = target_inventory - self.inventory
         
-        # Adjust production level based on gap
+        '''# Adjust production level based on gap
         if inventory_gap > 0:  # Need more inventory
             if self.inventory < self.average_demand:  # Very low inventory
                 self.production_level *= 1.2
@@ -84,7 +84,20 @@ class FirmAgent(mesa.Agent):
             if self.inventory > target_inventory * 1.5:  # Way too much
                 self.production_level *= 0.3
             else:  # Moderate decrease
-                self.production_level *= 0.7
+                self.production_level *= 0.7'''
+        
+
+        # Adjust production level based on gap
+        if inventory_gap > 0:  # Need more inventory
+            if self.inventory < self.average_demand:  # Very low inventory
+                self.production_level += 0.3
+            else:  # Moderate increase
+                self.production_level += 0.1
+        else:  # Too much inventory
+            if self.inventory > target_inventory * 1.5:  # Way too much
+                self.production_level -= 0.3
+            else:  # Moderate decrease
+                self.production_level -= 0.1
 
         # Keep production level within bounds
         self.production_level = min(max(self.production_level, 0.1), 1.0)
@@ -454,6 +467,10 @@ class FirmAgent(mesa.Agent):
         else:
             # If we don't have enough history yet, use simple average
             self.average_demand = sum(self.demand_history) / len(self.demand_history)
+            
+        # Debug print for necessity firms
+        if self.firm_type == "necessity":
+            print(f"[DEBUG] Necessity Firm {self.unique_id} - Average Demand: {self.average_demand:.2f}, Current Demand: {self.demand_received}")
 
         # Reset demand for next step
         self.demand_received = 0
