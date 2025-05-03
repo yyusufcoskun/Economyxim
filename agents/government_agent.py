@@ -47,7 +47,7 @@ class GovernmentAgent(mesa.Agent):
                 tax_rate = self.tax_rates[household.income_bracket]
                 
                 # Calculate tax amount based on total income
-                tax_amount = household.total_household_income * tax_rate
+                tax_amount = household.household_step_income * tax_rate
                 
                 # Update household's tax rate for future income calculations
                 household.income_tax_rate = tax_rate

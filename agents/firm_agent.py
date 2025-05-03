@@ -467,18 +467,6 @@ class FirmAgent(mesa.Agent):
         else:
             # If we don't have enough history yet, use simple average
             self.average_demand = sum(self.demand_history) / len(self.demand_history)
-            
-        # Debug print for necessity firms
-        if self.firm_type == "necessity":
-            print(f"[DEBUG] Necessity Firm {self.unique_id} - Average Demand: {self.average_demand:.2f}, Current Demand: {self.demand_received}")
-
+        
         # Reset demand for next step
         self.demand_received = 0
-        
-        # Print debug information
-    """print(f"[Firm {self.unique_id}], Units Produced: {produced_units}, "
-              f"Units Sold: {sold_units}, Inventory: {self.inventory}, "
-              f"Cost Per Unit: {cost_per_unit}, Price: {self.product_price}, "
-              f"Revenue: {self.revenue}, Costs: {self.costs}, "
-              f"Profit: {self.profit}")"""
-

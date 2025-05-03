@@ -26,14 +26,16 @@ class HouseholdAgent(mesa.Agent):
 
         # Basic household attributes
         self.num_people = num_people
-        self.total_household_income = 0
         self.income_tax_rate = income_tax_rate # TODO: Assign correct tax rate at creation time
         
         # Financial metrics 
-        self.total_income_posttax = 0
-        self.total_household_expense = 0
+        self.household_step_income = 0
+        self.household_step_income_posttax = 0
+        self.household_step_expense = 0
+        self.household_step_savings = 0
         self.total_household_savings = 0
-        
+        self.wealth_bracket = None
+        self.debt_level = 0
         # Welfare and employment tracking
         self.health_level = 0
         self.welfare = 0
@@ -107,7 +109,7 @@ class HouseholdAgent(mesa.Agent):
         # Select firm based on income bracket
         chosen_firm = None
         
-        if hasattr(self, 'income_bracket') and self.income_bracket in ["middle", "high"]:
+        if hasattr(self, 'wealth_bracket') and self.wealth_bracket in ["middle", "high"]:
             # Middle and high income households select random firms
             if firms_in_category:
                 chosen_firm = random.choice(firms_in_category)
@@ -208,72 +210,102 @@ class HouseholdAgent(mesa.Agent):
         """
         # Update household income based on members' wages
         employed_members = [member for member in self.members if member.employer is not None]  
-        self.total_household_income = sum(member.wage for member in employed_members)
+        self.household_step_income = sum(member.wage for member in employed_members)
 
         # Each person requires 19250 in necessity spending a month, split 50/50 between physical and service
         necessity_spend_per_person = 57750  
+        # Every household must attempt to spend the target amount on necessities
+        total_necessity_target = necessity_spend_per_person * self.num_people
 
         # Determine income bracket based on multiples of the necessity threshold
-        if self.total_household_income < necessity_spend_per_person*self.num_people:
+        if self.household_step_income < total_necessity_target:
             self.income_bracket = "low"
-        elif self.total_household_income < necessity_spend_per_person*self.num_people*3:
+        elif self.household_step_income < total_necessity_target*3:
             self.income_bracket = "middle"
         else:
             self.income_bracket = "high"
-            
+
         # Calculate after-tax income
-        self.total_income_posttax = self.total_household_income * (1 - self.income_tax_rate)
-        
+        self.household_step_income_posttax = self.household_step_income * (1 - self.income_tax_rate)
+
+        # Determine wealth bracket based on total household savings and post tax income
+        if self.total_household_savings + self.household_step_income_posttax < total_necessity_target*1.2:
+            self.wealth_bracket = "low"
+        elif self.total_household_savings + self.household_step_income_posttax < total_necessity_target*4.5:
+            self.wealth_bracket = "middle"
+        else:
+            self.wealth_bracket = "high"
+            
+
         # ---------- NECESSITY SPENDING ----------
-        # Every household must attempt to spend the target amount on necessities
-        total_necessity_target = necessity_spend_per_person * self.num_people
         
         # Split necessity budget between physical goods and services (50/50)
         physical_target = total_necessity_target * 0.5
         service_target = total_necessity_target * 0.5
         
-        # Make mandatory purchases for necessities
-        physical_spent = self._calculate_cost_and_buy("physical", physical_target)
-        service_spent = self._calculate_cost_and_buy("service", service_target)
+        # Make mandatory purchases for necessities, if income is low and household savings are low, buy necessities with post tax income
+        if self.income_bracket == "low" and self.household_step_income_posttax < total_necessity_target:
+            physical_spent = self._calculate_cost_and_buy("physical", self.household_step_income_posttax * 0.5)
+            service_spent = self._calculate_cost_and_buy("service", self.household_step_income_posttax * 0.5)
+        else:
+            physical_spent = self._calculate_cost_and_buy("physical", physical_target)
+            service_spent = self._calculate_cost_and_buy("service", service_target)
+
         
         # Total necessity spending
         total_necessity_spent = physical_spent + service_spent
         
         # ---------- LUXURY SPENDING ----------
         # Calculate remaining budget after necessity spending (can be negative)
-        remaining_budget = self.total_income_posttax - total_necessity_spent
+        step_income_remaining = self.household_step_income_posttax - total_necessity_spent
         
+        luxury_budget = step_income_remaining + self.total_household_savings
         # Initialize luxury spending amount
         luxury_spent = 0.0
         
         # Determine luxury spending based on income bracket
-        if self.income_bracket == "low":
+        if self.wealth_bracket == "low":
             # Low income households don't buy luxury items
             pass
-        elif self.income_bracket == "middle" and remaining_budget > 0:
+        elif self.wealth_bracket == "middle" and luxury_budget > 0:
             # Middle income: spend 50-100% of remaining budget on luxuries
-            luxury_spent = self._spend_on_luxuries(remaining_budget, (1.0, 1.0))
-        elif self.income_bracket == "high" and remaining_budget > 0:
+            luxury_spent = self._spend_on_luxuries(luxury_budget, (1.0, 1.0)) #önce böyle dene sonra değiştir
+        elif self.wealth_bracket == "high" and luxury_budget > 0:
             # High income: spend 80-100% of remaining budget on luxuries
-            luxury_spent = self._spend_on_luxuries(remaining_budget, (1.0, 1.0))
+            luxury_spent = self._spend_on_luxuries(luxury_budget, (1.0, 1.0))
         
         # ---------- UPDATE FINANCIAL METRICS ----------
         # Total expenses = necessities + luxuries
-        self.total_household_expense = total_necessity_spent + luxury_spent
-        
-        # Savings can be negative if spending exceeds income
-        self.total_household_savings = self.total_income_posttax - self.total_household_expense
-        
-        # Set health level based on income bracket
-        if self.income_bracket == "low":
-            self.health_level = 35
-        elif self.income_bracket == "middle":
-            self.health_level = 70
+        remaining_budget = luxury_budget - luxury_spent
+        self.household_step_expense = total_necessity_spent + luxury_spent
+
+        # Savings can be negative if spending exceeds income, which creates debt
+        self.total_household_savings = remaining_budget
+
+        # Monitor debt levels
+        if self.total_household_savings < 0:
+            self.debt_level = abs(self.total_household_savings)
         else:
-            self.health_level = 100
+            self.debt_level = 0
+
+        print(f"[DEBUG] Household {self.unique_id} - Total household savings: {self.total_household_savings}, Debt level: {self.debt_level}")
+
+        # Calculate necessity fulfillment percentage
+        necessity_fulfillment = min(1.0, total_necessity_spent / total_necessity_target) if total_necessity_target > 0 else 1.0
         
-        # Calculate overall welfare (weighted combination of factors)
-        self.welfare = (self.total_income_posttax * 0.3 + 
-                        self.total_household_expense * 0.2 + 
+        # Set base health level based on wealth bracket
+        if self.wealth_bracket == "low":
+            base_health = 35
+        elif self.wealth_bracket == "middle":
+            base_health = 70
+        else:
+            base_health = 100
+            
+        # Adjust health level based on necessity fulfillment
+        self.health_level = base_health * necessity_fulfillment
+        
+        # Calculate overall welfare with necessity fulfillment impact
+        self.welfare = (self.household_step_income_posttax * 0.3 + 
+                        self.household_step_expense * 0.2 + 
                         self.total_household_savings * 0.2 + 
                         self.health_level * 0.3)
