@@ -131,9 +131,9 @@ class FirmAgent(mesa.Agent):
 
         # Adjust market pressure based on inventory levels
         if inventory_demand_ratio > 2.0:  # inventory is more than 2 times of demand
-            market_pressure -= 0.3  # price wants to drop
+            market_pressure -= 0.6  # price wants to drop
         elif inventory_demand_ratio > 1.5:
-            market_pressure -= 0.2
+            market_pressure -= 0.4
         elif inventory_demand_ratio < 0.5:  # demand is twice as much as inventory
             market_pressure += 0.2  # price wants to rise so that stock lasts
         elif inventory_demand_ratio < 0.2:  # demand is 5 times as much as inventory
@@ -141,9 +141,9 @@ class FirmAgent(mesa.Agent):
 
         # Adjust market pressure based on sales performance
         if sell_through_rate < 0.4:  # poor sales
-            market_pressure -= 0.3
+            market_pressure -= 0.6
         elif sell_through_rate > 0.9:
-            market_pressure += 0.2
+            market_pressure += 0.3
 
         # Adjust market pressure based on demand trends
         if short_term_trend < -0.2:  # Sharp recent decline
@@ -172,10 +172,11 @@ class FirmAgent(mesa.Agent):
         self.markup += markup_change
         self.markup = max(0.01, self.markup)
         
-        '''
         # make sure profit margin stays realistic
-        if self.firm_type == "luxury":
-            self.markup = max(min(self.markup, 0.5), 0.2)  # 20-50% margin
+        if self.firm_type == "necessity":
+            self.markup = max(min(self.markup, 0.1), 0.35) # 10-35% margin
+
+        '''
         else:  # necessity
             self.markup = max(min(self.markup, 0.25), 0.05)  # 5-25% margin
         '''

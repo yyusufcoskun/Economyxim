@@ -269,10 +269,10 @@ class HouseholdAgent(mesa.Agent):
             pass
         elif self.wealth_bracket == "middle" and luxury_budget > 0:
             # Middle income: spend 50-100% of remaining budget on luxuries
-            luxury_spent = self._spend_on_luxuries(luxury_budget, (1.0, 1.0)) #önce böyle dene sonra değiştir
+            luxury_spent = self._spend_on_luxuries(luxury_budget, (0.5, 1.0)) #önce böyle dene sonra değiştir
         elif self.wealth_bracket == "high" and luxury_budget > 0:
             # High income: spend 80-100% of remaining budget on luxuries
-            luxury_spent = self._spend_on_luxuries(luxury_budget, (1.0, 1.0))
+            luxury_spent = self._spend_on_luxuries(luxury_budget, (0.8, 1.0))
         
         # ---------- UPDATE FINANCIAL METRICS ----------
         # Total expenses = necessities + luxuries
