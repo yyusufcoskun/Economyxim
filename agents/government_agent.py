@@ -56,7 +56,7 @@ class GovernmentAgent(mesa.Agent):
                 self.step_tax_revenue += tax_amount
         
         # Debug tax collection
-        print(f"[TAX] Collected ₺{self.step_tax_revenue:.2f} in taxes from {len(households)} households")
+        #print(f"[TAX] Collected ₺{self.step_tax_revenue:.2f} in taxes from {len(households)} households")
 
         return self.step_tax_revenue
         

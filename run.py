@@ -232,6 +232,21 @@ def main():
         results_folder=output_results_folder
     )
 
+    # Add new graph for average demand over time
+    analysis.create_time_series_by_type(
+        df=agent_data,
+        value_col="DemandReceived",  
+        type_col="FirmType",    
+        title="Average Demand Received by Firm Type Over Time",
+        xlabel="Time Step",
+        ylabel="Average Demand",
+        figsize=(12, 6),
+        grid=True,
+        legend=True,
+        filename="average_demand_by_type.png",
+        results_folder=output_results_folder
+    )
+
     
 if __name__ == "__main__":
     main()

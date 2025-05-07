@@ -57,49 +57,23 @@ class FirmAgent(mesa.Agent):
         if len(self.demand_history) == 0:
             return  # Not enough history yet
         
-        # Are sales increasing or decreasing?
-        if len(self.demand_history) >= 2:
-            recent_trend = self.demand_history[-1] / (self.demand_history[-2] + 1e-6) - 1  # percentage change
-        else:
-            recent_trend = 0
-
-        target_inventory = self.average_demand * 1.1
-
-        '''  # Adjust target based on trend
-        if recent_trend > 0.1:  # Growing demand
-            target_inventory *= 1.1
-        elif recent_trend < -0.1:  # Shrinking demand
-            target_inventory *= 0.9
-        '''
-        # Calculate how far we are from target
+        # Target inventory is just the average demand
+        target_inventory = self.average_demand * 1.3
+        
+        # Calculate how much we need to produce
         inventory_gap = target_inventory - self.inventory
         
-        '''# Adjust production level based on gap
-        if inventory_gap > 0:  # Need more inventory
-            if self.inventory < self.average_demand:  # Very low inventory
-                self.production_level *= 1.2
-            else:  # Moderate increase
-                self.production_level *= 1.1
-        else:  # Too much inventory
-            if self.inventory > target_inventory * 1.5:  # Way too much
-                self.production_level *= 0.3
-            else:  # Moderate decrease
-                self.production_level *= 0.7'''
+        # If gap is positive, we need to produce more
+        # If gap is negative, we don't produce
+        if inventory_gap > 0:
+            # Calculate how much of capacity to use
+            needed_production = inventory_gap
+            self.production_level = min(needed_production / self.production_capacity, 1.0)
+        else:
+            # Don't produce if we already have enough inventory
+            self.production_level = 0.1
         
-
-        # Adjust production level based on gap
-        if inventory_gap > 0:  # Need more inventory
-            if self.inventory < self.average_demand:  # Very low inventory
-                self.production_level += 0.3
-            else:  # Moderate increase
-                self.production_level += 0.1
-        else:  # Too much inventory
-            if self.inventory > target_inventory * 1.5:  # Way too much
-                self.production_level -= 0.3
-            else:  # Moderate decrease
-                self.production_level -= 0.1
-
-        # Keep production level within bounds
+        # Ensure production level stays within bounds (allowing 0.0 now)
         self.production_level = min(max(self.production_level, 0.1), 1.0)
 
     def adjust_price(self, sold_units, produced_units, cost_per_unit):
@@ -159,23 +133,15 @@ class FirmAgent(mesa.Agent):
         # Cap market_pressure between -1 and 1
         market_pressure = max(-1.0, min(market_pressure, 1.0))
 
-        # Apply market pressure to profit margin with price stickiness
-        # Make price decreases more resistant than price increases (downward rigidity)
-        if market_pressure < 0:
-            # When pressure is to decrease prices, dampen the effect (stickiness)
-            stickiness_factor = 0.7  # Only apply 70% of the downward pressure
-            markup_change = market_pressure * 0.1
-        else:
-            #TODO When pressure is to increase prices, keep 70% of effect because I need to make inflation still
-            markup_change = market_pressure*0.1
+        markup_change = market_pressure*0.1
         
         self.markup += markup_change
         self.markup = max(0.01, self.markup)
         
-        # make sure profit margin stays realistic
+        ''' # make sure profit margin stays realistic
         if self.firm_type == "necessity":
             self.markup = max(min(self.markup, 0.1), 0.35) # 10-35% margin
-
+        '''
         '''
         else:  # necessity
             self.markup = max(min(self.markup, 0.25), 0.05)  # 5-25% margin
@@ -183,7 +149,7 @@ class FirmAgent(mesa.Agent):
 
         # Update product price
         old_price = self.product_price
-        calculated_price = cost_per_unit * (1 + self.markup)
+        calculated_price = self.production_cost * (1 + self.markup)
         self.product_price = max(calculated_price, self.min_price)
         #print(f"[DEBUG] Firm {self.unique_id} price calculation in adjust_price: costs: {self.costs:.2f}, produced: {produced_units}, " + 
               #f"cost_per_unit: {cost_per_unit:.2f}, markup: {self.markup:.2f}, " +

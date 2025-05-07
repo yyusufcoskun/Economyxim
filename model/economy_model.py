@@ -9,6 +9,9 @@ from agents import HouseholdAgent
 class EconomicSimulationModel(mesa.Model):
     def __init__(self):
         super().__init__()
+        
+        # Initialize step counter
+        self.current_step = 0
 
         self.datacollector = mesa.DataCollector(
             model_reporters={
@@ -173,7 +176,6 @@ class EconomicSimulationModel(mesa.Model):
         )
 
         
-
     def step(self):
         # Collect data
         self.datacollector.collect(self)
@@ -185,3 +187,6 @@ class EconomicSimulationModel(mesa.Model):
         for agent in self.agents:
             if agent != self.government_agent:
                 agent.step()
+
+        self.current_step += 1
+        print(f"[DEBUG] Step {self.current_step} completed")
