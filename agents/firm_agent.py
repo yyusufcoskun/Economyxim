@@ -5,46 +5,86 @@ import random
 
 
 class FirmAgent(mesa.Agent):
-    def __init__(self, model, product, production_capacity, markup, 
-                 production_cost, entry_wage, num_employees, 
-                 firm_type, firm_area, production_level=1):
+    def __init__(self, model, product, firm_type, firm_area, 
+                 production_capacity, production_cost, markup,
+                 entry_wage, num_employees, production_level=1):
         super().__init__(model)
         # print(f"[DEBUG] Assigned production_level for {self.unique_id}: {production_level}")
 
+        # Basic firm identity and characteristics
         self.product = product
         self.firm_type = firm_type
-        self.production_capacity = production_capacity
-        self.markup = markup
-        self.production_level = production_level
-        
-        self.production_cost = max(1.0, production_cost)  # Ensure minimum production cost
-        
-        # Initialize with a non-zero price based on production cost and profit margin
-        self.product_price = self.production_cost * (1 + markup)
-        print(f"[DEBUG] Firm {self.unique_id} ({firm_type}/{firm_area}) initialized with price: {self.product_price:.2f}")
-        
         self.firm_area = firm_area
-        self.entry_wage = entry_wage
-        self.wage_multipliers = {"entry": 1.0, "mid": 1.4, "senior": 2.0}
         
-        self.num_employees = num_employees
-        self.inventory = production_capacity * 0.1  # Initialize with some inventory
+        # Production parameters
+        self.production_capacity = production_capacity
+        self.production_level = production_level
+        self.production_cost = max(1.0, production_cost)  # Ensure minimum production cost
+        self.produced_units = 0  # Track units produced
         
+        # Pricing and financial parameters
+        self.capital = 0 # TODO give initial capital to all firms
+        self.markup = markup
+        self.product_price = self.production_cost * (1 + markup)  # Initialize with a non-zero price
+        self.min_price = self.production_cost * 1.05  # Minimum 5% above production cost
         self.revenue = 0
         self.costs = 0
         self.profit = 0
-        self.revenue_per_employee = 0
-        self.produced_units = 0  # Track units produced
+        self.last_step_profit = None  # Profit from the previous step
         
-
-        self.last_step_profit =  None # profit from the previous step
-        self.demand_received = 0 # demand received from households
-        self.last_step_revenue_per_emp = None
-
+        # Inventory and demand tracking
+        self.inventory = self.production_capacity * 0.1  # Initialize with some inventory
+        self.demand_received = 0  # Demand received from households
+        self.unmet_demand = 0
         self.demand_history = []
-        self.demand_history_length = 5  # how many steps to track
-        self.average_demand = 0 # track average demand (will be calculated)
-        self.min_price = self.production_cost * 1.05  # Minimum 5% above production cost
+        self.demand_history_length = 5  # How many steps to track
+        self.average_demand = 0  # Track average demand (will be calculated)
+        
+        # Employee related parameters
+        self.num_employees = num_employees
+        self.entry_wage = entry_wage
+        self.wage_multipliers = {"entry": 1.0, "mid": 1.4, "senior": 2.0}
+        self.revenue_per_employee = 0
+        self.last_step_revenue_per_emp = None        
+
+        # Configurations for hiring logic (moved from hire_new_employee)
+
+        # Skill mix ratios for each firm area
+        self.skill_mix_config = {
+            "technical": {"senior": 0.25, "mid": 0.60, "entry": 0.15},  # Engineering, IT, technical roles need more senior expertise
+            "creative": {"senior": 0.25, "mid": 0.45, "entry": 0.30},   # Design/arts benefit from fresh perspectives but need experienced guidance
+            "physical": {"senior": 0.10, "mid": 0.35, "entry": 0.55},   # Manufacturing/construction has more entry-level positions
+            "social": {"senior": 0.20, "mid": 0.50, "entry": 0.30},     # Management/teaching needs experienced leaders
+            "analytical": {"senior": 0.25, "mid": 0.55, "entry": 0.20}, # Finance/data analysis requires more expertise
+            "service": {"senior": 0.10, "mid": 0.40, "entry": 0.50},    # Service industry has more entry-level positions
+        }
+
+        # Skill matching for each firm area
+        self.skill_type_matching_config = {
+            "technical": "technical",
+            "creative": "creative",
+            "physical": "physical", 
+            "social": "social",
+            "analytical": "analytical",
+            "service": "service",
+        }
+
+        # Minimum skill levels for each area and job level
+        self.min_skill_levels_config = {
+            "technical": {"senior": 80, "mid": 60, "entry": 40},
+            "creative": {"senior": 70, "mid": 50, "entry": 30}, 
+            "physical": {"senior": 60, "mid": 40, "entry": 10},
+            "social": {"senior": 70, "mid": 50, "entry": 30},
+            "analytical": {"senior": 80, "mid": 60, "entry": 30},
+            "service": {"senior": 60, "mid": 40, "entry": 20},
+        }
+
+        # Weights for demand averaging
+        # Must correspond to self.demand_history_length
+        self.demand_averaging_weights = [0.1, 0.15, 0.2, 0.25, 0.3]
+
+        # Debug output
+        print(f"[DEBUG] Firm {self.unique_id} ({firm_type}/{firm_area}) initialized with price: {self.product_price:.2f}")
     
 
     def receive_demand(self, units):
@@ -68,7 +108,7 @@ class FirmAgent(mesa.Agent):
         if inventory_gap > 0:
             # Calculate how much of capacity to use
             needed_production = inventory_gap
-            self.production_level = min(needed_production / self.production_capacity, 1.0)
+            self.production_level = min(needed_production / self.labor_added_production_capacity, 1.0)
         else:
             # Don't produce if we already have enough inventory
             self.production_level = 0.1
@@ -133,7 +173,7 @@ class FirmAgent(mesa.Agent):
         # Cap market_pressure between -1 and 1
         market_pressure = max(-1.0, min(market_pressure, 1.0))
 
-        markup_change = market_pressure*0.1
+        markup_change = market_pressure*0.5
         
         self.markup += markup_change
         self.markup = max(0.01, self.markup)
@@ -199,9 +239,10 @@ class FirmAgent(mesa.Agent):
             
             # Get skill level   
             skill_level = person.skill_level
+            labor = person.labor
             
             # Calculate productivity score
-            productivity = (skill_level * person.work_hours) / (person.wage + 1e-6)
+            productivity = (skill_level * labor) / (person.wage + 1e-6)
             employee_productivity.append((productivity, person))
         
         # Sort by productivity (lowest first), using only the first element of each tuple
@@ -229,26 +270,6 @@ class FirmAgent(mesa.Agent):
     def hire_new_employee(self):
         """Hire a new employee with appropriate skills for this firm area."""
         
-        # Define target skill mix ratios for each firm area
-        skill_mix = {
-            "technical": {"senior": 0.25, "mid": 0.60, "entry": 0.15},  # Engineering, IT, technical roles need more senior expertise
-            "creative": {"senior": 0.25, "mid": 0.45, "entry": 0.30},   # Design/arts benefit from fresh perspectives but need experienced guidance
-            "physical": {"senior": 0.10, "mid": 0.35, "entry": 0.55},   # Manufacturing/construction has more entry-level positions
-            "social": {"senior": 0.20, "mid": 0.50, "entry": 0.30},     # Management/teaching needs experienced leaders
-            "analytical": {"senior": 0.25, "mid": 0.55, "entry": 0.20}, # Finance/data analysis requires more expertise
-            "service": {"senior": 0.10, "mid": 0.40, "entry": 0.50},    # Service industry has more entry-level positions
-        }
-
-        # Define skill type matching for each firm area (one-to-one mapping)
-        skill_type_matching = {
-            "technical": "technical",
-            "creative": "creative",
-            "physical": "physical", 
-            "social": "social",
-            "analytical": "analytical",
-            "service": "service",
-        }
-
         # Get current employees and their levels
         employees = [agent for agent in self.model.agents 
                     if hasattr(agent, 'employer') and agent.employer == self]
@@ -263,20 +284,10 @@ class FirmAgent(mesa.Agent):
         if not hasattr(self, 'previous_employees'):
             self.previous_employees = set()
             
-        # Define minimum skill levels for each area and job level
-        min_skill_levels = {
-            "technical": {"senior": 80, "mid": 60, "entry": 40},
-            "creative": {"senior": 70, "mid": 50, "entry": 30}, 
-            "physical": {"senior": 60, "mid": 40, "entry": 10},
-            "social": {"senior": 70, "mid": 50, "entry": 30},
-            "analytical": {"senior": 80, "mid": 60, "entry": 30},
-            "service": {"senior": 60, "mid": 40, "entry": 20},
-        }
-        
         # Get thresholds for this firm area
         # Example: if self.firm_area is "tech" and job_level is "senior":
         # firm_levels = min_skill_levels["tech"] = {"senior": 0.8, "mid": 0.6, "entry": 0.4}
-        firm_levels = min_skill_levels.get(self.firm_area, min_skill_levels["physical"])
+        firm_levels = self.min_skill_levels_config.get(self.firm_area, self.min_skill_levels_config["physical"])
         
         # Count current employees at each level using area-specific thresholds
         for emp in employees:
@@ -293,7 +304,7 @@ class FirmAgent(mesa.Agent):
                 
         # Calculate percentages
         total = len(employees) + 1  # Add 1 for new hire
-        target_mix = skill_mix.get(self.firm_area, skill_mix["physical"])
+        target_mix = self.skill_mix_config.get(self.firm_area, self.skill_mix_config["physical"])
         
         # Determine which level needs hiring to get closer to target mix
         differences = {}
@@ -313,7 +324,7 @@ class FirmAgent(mesa.Agent):
         min_skill_level = firm_levels[job_level]
         
         # Get the matching skill type for this firm area
-        matching_skill_type = skill_type_matching.get(self.firm_area, "physical")
+        matching_skill_type = self.skill_type_matching_config.get(self.firm_area, "physical")
         
         # Find candidates with matching skill type
         matching_candidates = [agent for agent in self.model.agents 
@@ -382,10 +393,25 @@ class FirmAgent(mesa.Agent):
             # If no employees found, estimate based on entry wage and num_employees
             return self.entry_wage * self.num_employees
 
+
+    def _calculate_total_labor(self):
+        """Calculate the total labor value from all employees."""
+        employees = [agent for agent in self.model.agents 
+                    if hasattr(agent, 'employer') and agent.employer == self]
+        
+        self.total_labor = 0
+        if employees:
+            self.total_labor = sum(emp.labor for emp in employees)
+        return self.total_labor
+
     def step(self):
         """Execute one step of the firm's operations."""
         # Producing goods and adding them to the inventory
-        self.produced_units = round(self.production_capacity * self.production_level)
+        added_labor = self._calculate_total_labor()
+        
+        self.labor_added_production_capacity = self.production_capacity + added_labor
+        
+        self.produced_units = round(self.labor_added_production_capacity * self.production_level)
         self.inventory += self.produced_units
 
         wage_costs = self.calculate_total_wage_cost()
@@ -402,9 +428,10 @@ class FirmAgent(mesa.Agent):
 
         # Profit
         self.profit = self.revenue - self.costs
+        self.capital += self.profit
         
-        # Print debug info before updating revenue_per_employee
-        prev_revenue_per_emp = self.revenue_per_employee
+        # Calculate unmet demand
+        self.unmet_demand = self.demand_received - sold_units # Demand received this step MINUS what was sold
         
         # Update the revenue per employee
         self.revenue_per_employee = self.revenue / max(self.num_employees, 1) # Avoid division by zero
@@ -428,9 +455,8 @@ class FirmAgent(mesa.Agent):
             self.demand_history.pop(0)  # remove oldest entry
         
         # Calculate moving average with weights (more recent demand counts more)
-        weights = [0.1, 0.15, 0.2, 0.25, 0.3]  # weights sum to 1, more recent = higher weight
         if len(self.demand_history) == self.demand_history_length:
-            self.average_demand = sum(d * w for d, w in zip(self.demand_history, weights))
+            self.average_demand = sum(d * w for d, w in zip(self.demand_history, self.demand_averaging_weights))
         else:
             # If we don't have enough history yet, use simple average
             self.average_demand = sum(self.demand_history) / len(self.demand_history)

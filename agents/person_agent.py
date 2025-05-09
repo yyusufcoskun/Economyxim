@@ -30,6 +30,7 @@ class PersonAgent(mesa.Agent):
         
         # Generate a more realistic skill distribution (normal distribution centered around 40-60)
         self.skill_level = min(100, max(1, random.normalvariate(50, 15)))  # Normal distribution with mean 50, std 15
+        self.labor = self.skill_level/random.uniform(3, 5)
         
         # Job level (senior, mid, entry) - will be set when hired
         self.job_level = None
@@ -39,6 +40,9 @@ class PersonAgent(mesa.Agent):
         
         # Initial skill improvement rate (0.2% per step)
         self.skill_improvement_rate = 0.001
+        
+        # Flag to track if the person is currently studying due to low skills
+        self.studying_for_min_skills = False
         
     def step(self):
         '''
@@ -69,4 +73,37 @@ class PersonAgent(mesa.Agent):
             if self.employer is not None:
                 self.job_seeking = False
         '''
+
+        # Check if skill level is below entry level for their skill type
+        min_entry_level = 10  # Default fallback value
+        
+        # Find any firm to get the configuration
+        for agent in self.model.agents:
+            if hasattr(agent, 'min_skill_levels_config'):
+                # Get the minimum entry level skill for this person's skill type
+                if self.skill_type in agent.min_skill_levels_config:
+                    min_entry_level = agent.min_skill_levels_config[self.skill_type]["entry"]
+                break
+        
+        # If currently studying for minimum skills or job seeking but below threshold
+        if self.studying_for_min_skills or (self.job_seeking and self.skill_level < min_entry_level):
+            self.studying_for_min_skills = True
+            self.job_seeking = False
+            
+            # Study more intensively to reach minimum requirements
+            self.skill_level = min(100, self.skill_level * (1 + self.skill_improvement_rate * 1.5))
+            
+            # Check if reached minimum skill level
+            if self.skill_level >= min_entry_level:
+                self.studying_for_min_skills = False
+                self.job_seeking = True
+        
+        # If employed, should not be job seeking
+        if self.employer is not None:
+            self.job_seeking = False
+            self.studying_for_min_skills = False
+
+
+
+        
 

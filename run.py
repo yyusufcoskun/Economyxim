@@ -31,7 +31,23 @@ def main():
         figsize=(12, 6),
         grid=True,
         legend=True,
-        filename="household_income_brackets.png",
+        filename="household_income-brackets.png",
+        results_folder=output_results_folder,
+        aggfunc="count"
+    )
+
+    # Create wealth bracket distribution chart
+    analysis.create_time_series_by_type(
+        df=agent_data,
+        value_col="AgentID", # Counting households
+        type_col="WealthBracket", # Grouping by wealth bracket
+        title="Number of Households by Wealth Bracket Over Time",
+        xlabel="Time Step",
+        ylabel="Number of Households",
+        figsize=(12, 6),
+        grid=True,
+        legend=True,
+        filename="household_wealth-brackets.png",
         results_folder=output_results_folder,
         aggfunc="count"
     )
@@ -46,7 +62,7 @@ def main():
         ylabel="Profit",
         figsize=(10, 6),
         grid=True,
-        filename="firm_profits_distribution.png",
+        filename="firm_profits-distribution.png",
         results_folder=output_results_folder
     )
 
@@ -75,7 +91,7 @@ def main():
         figsize=(12, 6),
         grid=True,
         legend=True,
-        filename="gdp.png",
+        filename="government_gdp.png",
         results_folder=output_results_folder
     )
 
@@ -90,7 +106,7 @@ def main():
         figsize=(12, 6),
         grid=True,
         legend=True,
-        filename="unemployment_rate.png",
+        filename="government_unemployment-rate.png",
         results_folder=output_results_folder
     )
 
@@ -103,7 +119,7 @@ def main():
         figsize=(12, 6),
         grid=True,
         legend=True,
-        filename="firm_inventory_levels.png",
+        filename="firm_inventory-levels.png",
         results_folder=output_results_folder
     )
 
@@ -117,7 +133,37 @@ def main():
         figsize=(12, 6),
         grid=True,
         legend=True,
-        filename="firm_total_inventory_levels.png",
+        filename="firm_total-inventory-levels.png",
+        results_folder=output_results_folder,
+        aggfunc="sum"
+    )
+
+    # Add new graph for average unmet demand
+    analysis.create_time_series_by_type(
+        df=agent_data,
+        value_col="UnmetDemand",
+        title="Average Unmet Demand by Firm Type Over Time",
+        xlabel="Time Step",
+        ylabel="Average Unmet Demand",
+        figsize=(12, 6),
+        grid=True,
+        legend=True,
+        filename="firm_average-unmet-demand.png",
+        results_folder=output_results_folder,
+        aggfunc="mean"  # Explicitly using mean, though it's the default
+    )
+
+    # Add new graph for total unmet demand
+    analysis.create_time_series_by_type(
+        df=agent_data,
+        value_col="UnmetDemand",
+        title="Total Unmet Demand by Firm Type Over Time",
+        xlabel="Time Step",
+        ylabel="Total Unmet Demand",
+        figsize=(12, 6),
+        grid=True,
+        legend=True,
+        filename="firm_total-unmet-demand.png",
         results_folder=output_results_folder,
         aggfunc="sum"
     )
@@ -131,7 +177,7 @@ def main():
         figsize=(12, 6),
         grid=True,
         legend=True,
-        filename="firm_profit_levels.png",
+        filename="firm_profit-levels.png",
         results_folder=output_results_folder
     )
 
@@ -144,7 +190,7 @@ def main():
         figsize=(12, 6),
         grid=True,
         legend=True,
-        filename="firm_revenue_levels.png",
+        filename="firm_revenue-levels.png",
         results_folder=output_results_folder
     )
 
@@ -157,7 +203,7 @@ def main():
         figsize=(12, 6),
         grid=True,
         legend=True,
-        filename="firm_product_price_levels.png",
+        filename="firm_product-price-levels.png",
         results_folder=output_results_folder
     )
     
@@ -171,7 +217,7 @@ def main():
         figsize=(12, 6),
         grid=True,
         legend=True,
-        filename="skill_level_by_type.png",
+        filename="person_skill-level-by-type.png",
         results_folder=output_results_folder
     )
 
@@ -185,7 +231,7 @@ def main():
         figsize=(12, 6),
         grid=True,
         legend=True,
-        filename="job_level_employment.png",
+        filename="person_job-level-employment.png",
         results_folder=output_results_folder,
         aggfunc="sum"
     )
@@ -200,7 +246,7 @@ def main():
         figsize=(12, 6),
         grid=True,
         legend=True,
-        filename="markup_by_type.png",
+        filename="firm_markup-by-type.png",
         results_folder=output_results_folder
     )
 
@@ -214,7 +260,7 @@ def main():
         figsize=(12, 6),
         grid=True,
         legend=True,
-        filename="units_produced_by_type.png",
+        filename="firm_units-produced-by-type.png",
         results_folder=output_results_folder
     )
 
@@ -228,7 +274,7 @@ def main():
         figsize=(12, 6),
         grid=True,
         legend=True,
-        filename="production_level_by_type.png",
+        filename="firm_production-level-by-type.png",
         results_folder=output_results_folder
     )
 
@@ -243,9 +289,42 @@ def main():
         figsize=(12, 6),
         grid=True,
         legend=True,
-        filename="average_demand_by_type.png",
+        filename="firm_average-demand-by-type.png",
         results_folder=output_results_folder
     )
+
+    # Add new graph for average capital by firm type
+    analysis.create_time_series_by_type(
+        df=agent_data,
+        value_col="Capital",  
+        type_col="FirmType",    
+        title="Average Capital by Firm Type Over Time",
+        xlabel="Time Step",
+        ylabel="Average Capital",
+        figsize=(12, 6),
+        grid=True,
+        legend=True,
+        filename="firm_average-capital-by-type.png",
+        results_folder=output_results_folder,
+        aggfunc="mean" 
+    )
+
+    # Add new graph for average total household savings
+    household_data = agent_data.reset_index()[agent_data.reset_index()["TotalHouseholdSavings"].notnull()]
+    analysis.create_plot(
+        df=household_data,
+        plot_type="line",
+        columns=["TotalHouseholdSavings"],
+        title="Average Total Household Savings Over Time",
+        xlabel="Time Step",
+        ylabel="Average Savings",
+        figsize=(12, 6),
+        grid=True,
+        legend=True,
+        filename="household_average-savings.png",
+        results_folder=output_results_folder
+    )
+
 
     
 if __name__ == "__main__":
