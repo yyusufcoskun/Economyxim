@@ -8,7 +8,7 @@ from .intermediary_firm_agent import IntermediaryFirmAgent
 class FirmAgent(mesa.Agent):
     def __init__(self, model, product, firm_type, firm_area, 
                  production_capacity, production_cost, markup,
-                 entry_wage, num_employees, production_level=1):
+                 entry_wage, initial_employee_target, production_level=1):
         super().__init__(model)
         # print(f"[DEBUG] Assigned production_level for {self.unique_id}: {production_level}")
 
@@ -42,7 +42,8 @@ class FirmAgent(mesa.Agent):
         self.average_demand = 0  # Track average demand (will be calculated)
         
         # Employee related parameters
-        self.num_employees = num_employees
+        self.employees = []
+        self.num_employees = 0
         self.entry_wage = entry_wage
         self.wage_multipliers = {"entry": 1.0, "mid": 1.4, "senior": 2.0}
         self.revenue_per_employee = 0
@@ -87,6 +88,87 @@ class FirmAgent(mesa.Agent):
         # Debug output
         print(f"[DEBUG] Firm {self.unique_id} ({firm_type}/{firm_area}) initialized with price: {self.product_price:.2f}")
     
+        self._populate_initial_workforce(initial_employee_target)
+
+    def _populate_initial_workforce(self, target_count):
+        """
+        Hires the initial set of employees for the firm based on skill mix and availability.
+        """
+        # print(f"[DEBUG] Firm {self.unique_id} ({self.firm_area}): Populating initial workforce. Target: {target_count}")
+        if not hasattr(self.model, 'available_persons') or not self.model.available_persons:
+            print(f"[WARNING] Firm {self.unique_id}: No available persons in model to hire from for initial workforce.")
+            return
+
+        firm_skill_mix = self.skill_mix_config.get(self.firm_area)
+        if not firm_skill_mix:
+            print(f"[WARNING] Firm {self.unique_id}: No skill mix config found for firm area {self.firm_area}.")
+            return
+
+        target_skill_type = self.skill_type_matching_config.get(self.firm_area)
+        if not target_skill_type:
+            print(f"[WARNING] Firm {self.unique_id}: No skill type matching config for firm area {self.firm_area}.")
+            return
+
+        min_skill_levels_for_area = self.min_skill_levels_config.get(self.firm_area)
+        if not min_skill_levels_for_area:
+            print(f"[WARNING] Firm {self.unique_id}: No min skill levels config for firm area {self.firm_area}.")
+            return
+            
+        total_hired_count = 0
+
+        for job_level, percentage_for_level in firm_skill_mix.items():
+            if total_hired_count >= target_count:
+                break 
+
+            num_to_hire_for_level = round(target_count * percentage_for_level)
+            # print(f"[DEBUG] Firm {self.unique_id}: Targeting {num_to_hire_for_level} for job level '{job_level}'.")
+            if num_to_hire_for_level == 0:
+                continue
+                
+            hired_for_level_count = 0
+            min_skill_for_job_level = min_skill_levels_for_area.get(job_level)
+            if min_skill_for_job_level is None:
+                print(f"[WARNING] Firm {self.unique_id}: No min skill level for job '{job_level}' in area {self.firm_area}.")
+                continue
+
+            possible_hires = []
+            for p_idx, p in enumerate(list(self.model.available_persons)): # Iterate over a copy for safe removal
+                if p.job_seeking is True and \
+                   p.employer is None and \
+                   p.skill_type == target_skill_type and \
+                   p.skill_level >= min_skill_for_job_level:
+                    possible_hires.append(p)
+            
+            random.shuffle(possible_hires)
+
+            for candidate in possible_hires:
+                if hired_for_level_count >= num_to_hire_for_level or total_hired_count >= target_count:
+                    break
+                
+                # Double check availability before hiring, in case another firm hired this person
+                # This can happen if not removing immediately from global list in this function
+                if candidate.employer is None and candidate.job_seeking is True:
+                    candidate.employer = self
+                    candidate.job_seeking = False
+                    candidate.job_level = job_level
+                    wage_multiplier_for_level = self.wage_multipliers.get(job_level, 1.0)
+                    candidate.wage = self.entry_wage * wage_multiplier_for_level
+                    
+                    self.employees.append(candidate)
+                    self.num_employees += 1
+                    total_hired_count += 1
+                    hired_for_level_count += 1
+                    
+                    # print(f"[DEBUG] Firm {self.unique_id}: Hired Person {candidate.unique_id} (Skill: {candidate.skill_level}) as '{job_level}'. Wage: {candidate.wage:.0f}")
+                    
+                    # Remove from global list - MOVED TO HOUSEHOLD AGENT AS PER DISCUSSION
+                    # self.model.available_persons.remove(candidate) 
+                # else:
+                    # print(f"[DEBUG] Firm {self.unique_id}: Candidate {candidate.unique_id} was already hired or not seeking.")
+
+            # print(f"[DEBUG] Firm {self.unique_id}: Hired {hired_for_level_count} for job level '{job_level}'. Total firm employees: {self.num_employees}")
+
+        print(f"[INFO] Firm {self.unique_id} ({self.firm_area}): Initial workforce population complete. Target: {target_count}, Actual Hired: {self.num_employees}")
 
     def receive_demand(self, units):
         """Record demand received from households."""

@@ -6,6 +6,7 @@ from agents import GovernmentAgent
 from agents import FirmAgent
 from agents import HouseholdAgent
 from agents import IntermediaryFirmAgent
+from agents import PersonAgent
 
 
 class EconomicSimulationModel(mesa.Model):
@@ -14,6 +15,8 @@ class EconomicSimulationModel(mesa.Model):
         
         # Initialize step counter
         self.current_step = 0
+        self.available_persons = []
+        self.num_persons = 30000
 
         self.datacollector = mesa.DataCollector(
             model_reporters={
@@ -77,6 +80,12 @@ class EconomicSimulationModel(mesa.Model):
         
         self.government_agent = GovernmentAgent.create_agents(model=self, n=1)[0]
         
+        # print(f"[DEBUG] EconomicSimulationModel: Initializing {self.num_persons} PersonAgents.")
+        for i in range(self.num_persons):
+            person = PersonAgent(model=self)
+            self.available_persons.append(person)
+        # print(f"[DEBUG] EconomicSimulationModel: Created {len(self.schedule.agents)} total agents after PersonAgent init, {len(self.available_persons)} available persons.")
+
         # Create firms with different areas and suitable parameters
         
         # --- NECESSITY FIRMS ---
@@ -93,7 +102,7 @@ class EconomicSimulationModel(mesa.Model):
             markup=2,
             production_cost=[random.uniform(1.8, 3.5) for _ in range(n_physical)],
             entry_wage=[random.randint(60000, 75000) for _ in range(n_physical)],
-            num_employees=[random.randint(30, 120) for _ in range(n_physical)],
+            initial_employee_target=[random.randint(30, 120) for _ in range(n_physical)],
             production_level=[random.uniform(0.7, 1) for _ in range(n_physical)]
         )
         
@@ -109,7 +118,7 @@ class EconomicSimulationModel(mesa.Model):
             markup=3,
             production_cost=[random.uniform(1.5, 3.5) for _ in range(n_service)],
             entry_wage=[random.randint(54000, 66000) for _ in range(n_service)],
-            num_employees=[random.randint(15, 50) for _ in range(n_service)],
+            initial_employee_target=[random.randint(15, 50) for _ in range(n_service)],
             production_level=[random.uniform(0.6, 0.9) for _ in range(n_service)]
         )
         
@@ -127,7 +136,7 @@ class EconomicSimulationModel(mesa.Model):
             markup=7,
             production_cost=[random.uniform(50.0, 150.0) for _ in range(n_technical)],
             entry_wage=[random.randint(180000, 225000) for _ in range(n_technical)],
-            num_employees=[random.randint(10, 80) for _ in range(n_technical)],
+            initial_employee_target=[random.randint(10, 80) for _ in range(n_technical)],
             production_level=[random.uniform(0.5, 0.9) for _ in range(n_technical)]
         )
         
@@ -143,7 +152,7 @@ class EconomicSimulationModel(mesa.Model):
             markup=6,
             production_cost=[random.uniform(40.0, 80.0) for _ in range(n_creative)],
             entry_wage=[random.randint(135000, 180000) for _ in range(n_creative)],
-            num_employees=[random.randint(5, 30) for _ in range(n_creative)],
+            initial_employee_target=[random.randint(5, 30) for _ in range(n_creative)],
             production_level=[random.uniform(0.4, 0.8) for _ in range(n_creative)]
         )
         
@@ -159,7 +168,7 @@ class EconomicSimulationModel(mesa.Model):
             markup=5,
             production_cost=[random.uniform(60.0, 100.0) for _ in range(n_social)],
             entry_wage=[random.randint(150000, 195000) for _ in range(n_social)],
-            num_employees=[random.randint(8, 40) for _ in range(n_social)],
+            initial_employee_target=[random.randint(8, 40) for _ in range(n_social)],
             production_level=[random.uniform(0.5, 0.9) for _ in range(n_social)]
         )
         
@@ -175,7 +184,7 @@ class EconomicSimulationModel(mesa.Model):
             markup=6,
             production_cost=[random.uniform(80.0, 150.0) for _ in range(n_analytical)],
             entry_wage=[random.randint(165000, 215000) for _ in range(n_analytical)],
-            num_employees=[random.randint(5, 25) for _ in range(n_analytical)],
+            initial_employee_target=[random.randint(5, 25) for _ in range(n_analytical)],
             production_level=[random.uniform(0.6, 0.9) for _ in range(n_analytical)]
         )
 
@@ -185,7 +194,7 @@ class EconomicSimulationModel(mesa.Model):
         IntermediaryFirmAgent.create_agents(
             model=self,
             n=n_intermediary,
-            num_employees=200
+            initial_employee_target=240
         )
 
         n_households = 1000
@@ -195,6 +204,52 @@ class EconomicSimulationModel(mesa.Model):
             num_people=[random.randint(1, 5) for _ in range(n_households)],
             income_tax_rate=0.15  
         )
+
+        # Step 6: Cleanup Unassigned PersonAgents
+        # print(f"[DEBUG] EconomicSimulationModel: Total agents in scheduler before cleanup: {len(self.agents)}.")
+
+        persons_to_remove = list(self.available_persons) 
+        removed_count = 0
+        actually_removed_from_schedule_count = 0
+
+        # print(f"[DEBUG] EconomicSimulationModel: Cleanup - Iterating through {len(persons_to_remove)} persons found in available_persons list.")
+
+        for person in persons_to_remove:
+            # NEW CRITERIA: Any person who is not in a household by this stage should be removed.
+            # This includes employed persons who didn't get a household, and unemployed who didn't.
+            if person.household is None:
+                # print(f"[DEBUG] EconomicSimulationModel: Removing Person {person.unique_id} (Employer: {person.employer is not None}, Household: {person.household is None}) because they are not in a household.")
+                try:
+                    self.agents.remove(person) # Remove from scheduler
+                    actually_removed_from_schedule_count += 1
+                except ValueError: # Agent might have already been removed if self.agents and self.schedule.agents are different views
+                    # print(f"[DEBUG] EconomicSimulationModel: Person {person.unique_id} already removed from schedule or not found.")
+                    pass # Already removed from schedule or was never there properly
+                
+                # Also remove from the model's self.agents list if it's being used for tracking active agents
+                # This depends on how self.agents is populated and used by the user's Model subclass
+                if hasattr(self, 'agents') and person in self.agents: # Assuming self.agents is a list of active agents
+                    try:
+                        self.agents.remove(person) 
+                    except ValueError:
+                        pass # Already removed from self.agents
+
+                # And finally, remove from our temporary tracking list `available_persons`
+                if person in self.available_persons:
+                     self.available_persons.remove(person)
+                removed_count +=1 # Counts removal from available_persons list for this debug logic
+            # else:
+                # print(f"[DEBUG] EconomicSimulationModel: Person {person.unique_id} is in a household. Not removing from simulation.")
+        
+        print(f"[DEBUG] EconomicSimulationModel: Finished cleanup. Iterated {len(persons_to_remove)} from available_persons initially.")
+        print(f"[DEBUG] EconomicSimulationModel: Removed {removed_count} persons from available_persons list based on household status.")
+        print(f"[DEBUG] EconomicSimulationModel: Attempted to remove {actually_removed_from_schedule_count} persons from schedule.")
+        print(f"[DEBUG] EconomicSimulationModel: {len(self.available_persons)} persons remaining in available_persons list (should be 0).")
+        print(f"[DEBUG] EconomicSimulationModel: Total agents in scheduler after cleanup: {len(self.agents)}.") # Use self.schedule.agents for scheduler count
+        
+        # Optionally, fully clear the list if its purpose is only for initial assignment
+        # self.available_persons.clear()
+        # print("[INFO] available_persons list has been cleared.")
 
         
     def step(self):

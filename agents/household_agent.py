@@ -19,14 +19,14 @@ class HouseholdAgent(mesa.Agent):
         
         Args:
             model: The model instance this household belongs to
-            num_people: Number of people in this household
+            num_people: Target number of people for this household
             income_tax_rate: Rate of income tax applied to household income
         """
         super().__init__(model)
 
         # Basic household attributes
-        self.num_people = num_people
-        self.income_tax_rate = income_tax_rate # TODO: Assign correct tax rate at creation time
+        # self.num_people = num_people # This will be tracked by self.current_population after populating
+        self.income_tax_rate = income_tax_rate
         
         # Financial metrics 
         self.household_step_income = 0
@@ -39,15 +39,86 @@ class HouseholdAgent(mesa.Agent):
         # Welfare and employment tracking
         self.health_level = 0
         self.welfare = 0
-        self.num_working_people = 0
-        self.num_not_seeking_job = 0
-        self.num_seeking_job = self.num_people - self.num_working_people - self.num_not_seeking_job
+        self.num_working_people = 0 # This will be updated based on actual members
+        self.num_not_seeking_job = 0 # This will be updated based on actual members
+        self.num_seeking_job = 0 # This will be updated based on actual members
         
         # Create and store household members
         self.members = []
-        for i in range(num_people):
-            person = PersonAgent(self.model, self, job_seeking=True, wage=0, work_hours=40)
-            self.members.append(person)
+        self.current_population = 0 # New: tracks actual number of members added
+        # Removed old loop: for i in range(num_people): ...
+
+        self._populate_household(num_people) # New: Call to populate method
+
+    def _populate_household(self, target_population):
+        """
+        Populates the household with PersonAgents from the model's available pool,
+        prioritizing employed individuals, then unemployed, up to the target_population.
+        """
+        # print(f"[DEBUG] Household {self.unique_id}: Populating. Target: {target_population}. Available persons in model: {len(self.model.available_persons) if hasattr(self.model, 'available_persons') else 'N/A'}")
+        if not hasattr(self.model, 'available_persons'):
+            print(f"[WARNING] Household {self.unique_id}: self.model.available_persons does not exist. Cannot populate.")
+            return
+
+        # Phase 1: Add employed persons
+        # print(f"[DEBUG] Household {self.unique_id}: Phase 1 (Employed). Current pop: {self.current_population}/{target_population}")
+        available_persons_copy = list(self.model.available_persons)
+        random.shuffle(available_persons_copy)
+
+        for person_to_add in available_persons_copy:
+            if self.current_population >= target_population:
+                break 
+            
+            if person_to_add.household is None and person_to_add.employer is not None:
+                # print(f"[DEBUG] Household {self.unique_id}: Adding employed Person {person_to_add.unique_id} (Employer: {person_to_add.employer.unique_id if person_to_add.employer else 'None'}).")
+                person_to_add.household = self
+                self.members.append(person_to_add)
+                self.current_population += 1
+                if person_to_add in self.model.available_persons: 
+                    self.model.available_persons.remove(person_to_add)
+        
+        # print(f"[DEBUG] Household {self.unique_id}: After Phase 1. Current pop: {self.current_population}/{target_population}. Model available: {len(self.model.available_persons)}")
+
+        if self.current_population < target_population:
+            # print(f"[DEBUG] Household {self.unique_id}: Phase 2 (Unemployed). Current pop: {self.current_population}/{target_population}")
+            available_persons_copy = list(self.model.available_persons) 
+            random.shuffle(available_persons_copy)
+
+            for person_to_add in available_persons_copy:
+                if self.current_population >= target_population:
+                    break
+
+                if person_to_add.household is None and person_to_add.employer is None:
+                    # print(f"[DEBUG] Household {self.unique_id}: Adding unemployed Person {person_to_add.unique_id}.")
+                    person_to_add.household = self
+                    self.members.append(person_to_add)
+                    self.current_population += 1
+                    if person_to_add in self.model.available_persons: 
+                        self.model.available_persons.remove(person_to_add)
+            # print(f"[DEBUG] Household {self.unique_id}: After Phase 2. Current pop: {self.current_population}/{target_population}. Model available: {len(self.model.available_persons)}")
+        
+        self.num_people = self.current_population 
+        self._update_employment_counts()
+        #print(f"[INFO] Household {self.unique_id}: Population complete. Final size: {self.num_people} (Target: {target_population})")
+
+    def _update_employment_counts(self):
+        """Helper to update employment related counts based on current members."""
+        old_working = self.num_working_people
+        old_seeking = self.num_seeking_job
+        old_not_seeking = self.num_not_seeking_job
+
+        self.num_working_people = 0
+        self.num_not_seeking_job = 0
+        self.num_seeking_job = 0
+        for member in self.members:
+            if member.employer is not None:
+                self.num_working_people += 1
+            elif not member.job_seeking:
+                self.num_not_seeking_job += 1
+            else: 
+                self.num_seeking_job += 1
+        # if self.num_working_people != old_working or self.num_seeking_job != old_seeking or self.num_not_seeking_job != old_not_seeking:
+            # print(f"[DEBUG] Household {self.unique_id} employment counts updated: Working={self.num_working_people}, Seeking={self.num_seeking_job}, NotSeeking={self.num_not_seeking_job}")
 
     def _get_cheapest_firm(self, firm_category):
         """

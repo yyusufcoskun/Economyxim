@@ -5,6 +5,6 @@ money_model.ipynb
 venv/
 mesa-readthedocs-io-en-latest.pdf
 data/saved_data
-.cursor
+.cursor/rules
 TODO.md
 prompts.md
