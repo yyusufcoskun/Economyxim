@@ -1,7 +1,6 @@
 import mesa
 import numpy as np
 import pandas as pd
-# Add imports for PersonAgent and HouseholdAgent
 from .person_agent import PersonAgent
 from .household_agent import HouseholdAgent
 
@@ -232,6 +231,8 @@ class GovernmentAgent(mesa.Agent):
         yearly_gdp = calculated_gdp * 4
         """
 
+                    
+        
     def step(self):
 
         # Apply tax rates and collect taxes
@@ -258,7 +259,7 @@ class GovernmentAgent(mesa.Agent):
         
         self.reserves -= necessity_goods_spent_total
 
-        print(f"[GOV] Reserves after spending: {self.reserves} | Unemployment payments: {unemployment_payments_total} | Low-income transfers: {low_income_transfers_total} | Necessity goods spent: {necessity_goods_spent_total}")
+        # print(f"[GOV] Reserves after spending: {self.reserves} | Unemployment payments: {unemployment_payments_total} | Low-income transfers: {low_income_transfers_total} | Necessity goods spent: {necessity_goods_spent_total}")
         
         self._calculate_unemployment_rate()
         self.GDP = self._calculate_gdp()

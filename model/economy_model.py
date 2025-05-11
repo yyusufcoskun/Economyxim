@@ -5,6 +5,8 @@ import random
 from agents import GovernmentAgent
 from agents import FirmAgent
 from agents import HouseholdAgent
+from agents import IntermediaryFirmAgent
+
 
 class EconomicSimulationModel(mesa.Model):
     def __init__(self):
@@ -175,6 +177,15 @@ class EconomicSimulationModel(mesa.Model):
             entry_wage=[random.randint(165000, 215000) for _ in range(n_analytical)],
             num_employees=[random.randint(5, 25) for _ in range(n_analytical)],
             production_level=[random.uniform(0.6, 0.9) for _ in range(n_analytical)]
+        )
+
+        # --- INTERMEDIARY FIRM ---
+
+        n_intermediary = 1
+        IntermediaryFirmAgent.create_agents(
+            model=self,
+            n=n_intermediary,
+            num_employees=200
         )
 
         n_households = 1000

@@ -2,6 +2,7 @@ import mesa
 import numpy as np
 import pandas as pd
 import random
+from .intermediary_firm_agent import IntermediaryFirmAgent
 
 
 class FirmAgent(mesa.Agent):
@@ -417,6 +418,13 @@ class FirmAgent(mesa.Agent):
         wage_costs = self.calculate_total_wage_cost()
         production_costs = self.production_cost * self.produced_units
         self.costs = wage_costs + production_costs
+        # print(f"[DEBUG] Firm {self.unique_id} costs: {production_costs}")
+        # Send demand to intermediary firm 
+        intermediary_firm = [a for a in self.model.agents if isinstance(a, IntermediaryFirmAgent)][0]
+        # Send demand to intermediary firm
+        intermediary_firm.receive_firm_demand(production_costs)
+
+        
         
         # Ensure cost_per_unit is not zero to avoid zero prices
         cost_per_unit = self.costs / (self.produced_units + 1e-6)
