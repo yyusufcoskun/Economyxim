@@ -3,3 +3,5 @@ money_model.ipynb
 *.py[cod]
 *$py.class
 venv/
+mesa-readthedocs-io-en-latest.pdf
+data/saved_data

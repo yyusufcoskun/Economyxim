@@ -16,7 +16,6 @@ class EconomicSimulationModel(mesa.Model):
         self.datacollector = mesa.DataCollector(
             model_reporters={
                 "Reserves": lambda m: m.government_agent.reserves,
-                "Yearly Public Spending": lambda m: m.government_agent.yearly_public_spending,
                 "Step Public Spending": lambda m: m.government_agent.step_public_spending,
                 "Unemployment Rate": lambda m: m.government_agent.unemployment_rate,
                 "GDP": lambda m: m.government_agent.GDP,
@@ -177,7 +176,6 @@ class EconomicSimulationModel(mesa.Model):
             num_employees=[random.randint(5, 25) for _ in range(n_analytical)],
             production_level=[random.uniform(0.6, 0.9) for _ in range(n_analytical)]
         )
-
 
         n_households = 1000
         HouseholdAgent.create_agents(

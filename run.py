@@ -69,7 +69,7 @@ def main():
     analysis.create_plot(
         df=model_data,
         plot_type="line", 
-        columns=["Reserves", "Yearly Public Spending"],
+        columns=["Reserves", "Step Public Spending"],
         title="Government Reserves and Public Spending Over Time",
         xlabel="Time Step",
         ylabel="Amount",

@@ -116,7 +116,7 @@ class FirmAgent(mesa.Agent):
         # Ensure production level stays within bounds (allowing 0.0 now)
         self.production_level = min(max(self.production_level, 0.1), 1.0)
 
-    def adjust_price(self, sold_units, produced_units, cost_per_unit):
+    def adjust_price(self, sold_units, produced_units):
         """Adjust price based on market conditions and demand trends."""
         if produced_units == 0:
             return
@@ -427,8 +427,14 @@ class FirmAgent(mesa.Agent):
         self.inventory -= sold_units
 
         # Profit
+        
         self.profit = self.revenue - self.costs
-        self.capital += self.profit
+
+        if self.profit > 0:
+            self.profit = self.profit * (1 - self.model.government_agent.corporate_tax_rate)
+            self.capital += self.profit
+        else:
+            self.capital += self.profit
         
         # Calculate unmet demand
         self.unmet_demand = self.demand_received - sold_units # Demand received this step MINUS what was sold
@@ -442,7 +448,7 @@ class FirmAgent(mesa.Agent):
             self.last_step_revenue_per_emp = self.revenue_per_employee
         
         # Make adjustments
-        self.adjust_price(sold_units, self.produced_units, cost_per_unit)
+        self.adjust_price(sold_units, self.produced_units)
         self.adjust_production(sold_units)
         self.adjust_employees()
 

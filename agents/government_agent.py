@@ -1,6 +1,9 @@
 import mesa
 import numpy as np
 import pandas as pd
+# Add imports for PersonAgent and HouseholdAgent
+from .person_agent import PersonAgent
+from .household_agent import HouseholdAgent
 
 
 class GovernmentAgent(mesa.Agent):
@@ -8,16 +11,14 @@ class GovernmentAgent(mesa.Agent):
         super().__init__(model)
 
         # TODO I will model inflation after I do firm, because inflation occurs when aggregate demand exceeds aggregate supply. Then I can calculate the average price increase from firms to calculate inflation.
-        # TODO Copied from ChatGPT: If unemployment is very low, rising wages might push up production costs.If unemployment is high, the government might consider lowering interest rates to boost spending and hiring. Which will change inflation too.
 
         self.reserves = 1000000
-        self.previous_reserves = self.reserves  # Track previous step's reserves
+        self.previous_reserves = self.reserves  
         self.inflation_rate = inflation_rate
         self.unemployment_rate = unemployment_rate
         self.GDP = 0
         self.step_tax_revenue = 0
-        self.yearly_public_spending = 0
-        self.step_public_spending = self.reserves * 0.2
+        self.step_public_spending = 0 
         self.interest_rate = interest_rate
         
         # Define tax brackets
@@ -26,10 +27,9 @@ class GovernmentAgent(mesa.Agent):
             "middle": 0.20, # 20% tax for middle income
             "high": 0.27    # 27% tax for high income
         }
-        
-        # Track tax collection per step
+        self.corporate_tax_rate = 0.22
         self.step_tax_revenue = 0
-
+        self.step_corporate_tax_revenue = 0
 
     def _collect_taxes(self):
         """
@@ -56,91 +56,137 @@ class GovernmentAgent(mesa.Agent):
                 # Collect taxes for government
                 self.step_tax_revenue += tax_amount
         
-        # Debug tax collection
         #print(f"[TAX] Collected ₺{self.step_tax_revenue:.2f} in taxes from {len(households)} households")
 
         return self.step_tax_revenue
-        
-    def _distribute_public_spending(self):
-        spending_per_category = self.step_public_spending / 3
-        
-        # 1. Transfer payments to low-income households
-        low_income_households = [h for h in self.model.agents if hasattr(h, 'wealth_bracket') and h.wealth_bracket == "low"]
-        if low_income_households:
-            transfer_per_household = spending_per_category / len(low_income_households)
-            for household in low_income_households:
-                if hasattr(household, 'total_household_savings'): # Check before adding
-                    household.total_household_savings += transfer_per_household
-                # print(f"[GOV] Transfer payment ₺{transfer_per_household:.2f} to low-income household {household.unique_id}")
+    
+    def _collect_corporate_taxes(self):
+        """
+        Collect corporate taxes from firms
+        """
+        firms = [agent for agent in self.model.agents if hasattr(agent, 'profit')]
 
-        # 2. Unemployment wages
-        person_agents = [p for p in self.model.agents if hasattr(p, 'employer') and hasattr(p, 'job_seeking')]
+        for firm in firms:
+            if firm.profit > 0:
+                corporate_tax_amount = firm.profit * self.corporate_tax_rate
+                self.step_corporate_tax_revenue += corporate_tax_amount
+        
+        return self.step_corporate_tax_revenue
+        
+
+    def _calculate_and_distribute_unemployment_payments(self):
+        """
+        Calculate and distribute unemployment payments.
+        Each unemployed person receives a fixed amount.
+        Returns the total amount paid.
+        """
+        total_unemployment_payments = 0
+        person_agents = [p for p in self.model.agents if isinstance(p, PersonAgent)]
         unemployed_persons = [p for p in person_agents if p.employer is None and p.job_seeking]
         
+        payment_per_person = 10000
+        
         if unemployed_persons:
-            wage_per_unemployed = spending_per_category / len(unemployed_persons)
             for person in unemployed_persons:
-                person.wage = wage_per_unemployed # This will be overridden if they get a job
-                print(f"[GOV] Unemployment wage ₺{wage_per_unemployed:.2f} to person {person.unique_id}")
+                person.wage = payment_per_person
+                total_unemployment_payments += payment_per_person
+                # print(f"[GOV] Unemployment payment ₺{payment_per_person:.2f} to person {person.unique_id}")
+        return total_unemployment_payments
 
-        # 3. Government spending on necessity goods
+    def _calculate_and_distribute_low_income_transfers(self):
+        """
+        Calculate and distribute transfers to low-income households.
+        Households unable to meet necessity targets receive deficit + 5000.
+        Returns the total amount transferred.
+        """
+        total_low_income_transfers = 0
+        households = [h for h in self.model.agents if isinstance(h, HouseholdAgent)]
+        
+        necessity_spend_per_person = 57750
+
+        for household in households:
+            total_necessity_target = necessity_spend_per_person * household.num_people
+
+            available_funds = household.household_step_income_posttax + household.total_household_savings
+
+            if available_funds < total_necessity_target:
+                deficit = total_necessity_target - available_funds
+                transfer_amount = deficit + 5000
+                
+                household.total_household_savings += transfer_amount
+                total_low_income_transfers += transfer_amount
+                # print(f"[GOV] Low-income transfer ₺{transfer_amount:.2f} to household {household.unique_id}")
+        return total_low_income_transfers
+
+    def _execute_government_necessity_spending(self, budget):
+        """
+        Government purchases necessity goods from firms.
+        Budget is provided, split 50/50 between physical and service goods.
+        Returns the total amount spent.
+        """
+        total_spent_on_necessities = 0
+        
+        spending_for_necessity_goods = budget
+        
+        # Split budget for necessity types (e.g., physical and service)
+        spending_per_necessity_type = spending_for_necessity_goods / 2
+
         necessity_firms_physical = [
             f for f in self.model.agents 
             if hasattr(f, 'firm_type') and f.firm_type == "necessity" 
             and hasattr(f, 'firm_area') and f.firm_area == "physical"
-            and hasattr(f, 'product_price') and f.product_price > 0 # Ensure firm can sell
+            and hasattr(f, 'product_price') and f.product_price > 0
         ]
         necessity_firms_service = [
             f for f in self.model.agents 
             if hasattr(f, 'firm_type') and f.firm_type == "necessity" 
             and hasattr(f, 'firm_area') and f.firm_area == "service"
-            and hasattr(f, 'product_price') and f.product_price > 0 # Ensure firm can sell
+            and hasattr(f, 'product_price') and f.product_price > 0
         ]
 
-        spending_for_necessity_goods = spending_per_category
-        spending_per_necessity_type = spending_for_necessity_goods / 2
-
         # Buy from physical necessity firms
-        if necessity_firms_physical:
-            # Distribute spending somewhat evenly among available firms
-            spending_per_physical_firm = spending_per_necessity_type / len(necessity_firms_physical)
+        if necessity_firms_physical and spending_per_necessity_type > 0:
+            budget_per_physical_firm = spending_per_necessity_type / len(necessity_firms_physical)
             for firm in necessity_firms_physical:
-                if firm.product_price > 0:
-                    units_to_buy = int(spending_per_physical_firm / firm.product_price)
+                if firm.product_price > 0 and budget_per_physical_firm > 0:
+                    units_to_buy = int(budget_per_physical_firm / firm.product_price)
                     if units_to_buy > 0:
+                        actual_cost = units_to_buy * firm.product_price
                         firm.receive_demand(units_to_buy)
-                        # print(f"[GOV] Purchased {units_to_buy} units from physical necessity firm {firm.unique_id} for ₺{units_to_buy * firm.product_price:.2f}")
+                        total_spent_on_necessities += actual_cost
+                        # print(f"[GOV] Purchased {units_to_buy} units from physical necessity firm {firm.unique_id} for ₺{actual_cost:.2f}")
 
         # Buy from service necessity firms
-        if necessity_firms_service:
-            spending_per_service_firm = spending_per_necessity_type / len(necessity_firms_service)
+        if necessity_firms_service and spending_per_necessity_type > 0:
+            budget_per_service_firm = spending_per_necessity_type / len(necessity_firms_service)
             for firm in necessity_firms_service:
-                if firm.product_price > 0:
-                    units_to_buy = int(spending_per_service_firm / firm.product_price)
+                if firm.product_price > 0 and budget_per_service_firm > 0:
+                    units_to_buy = int(budget_per_service_firm / firm.product_price)
                     if units_to_buy > 0:
+                        actual_cost = units_to_buy * firm.product_price
                         firm.receive_demand(units_to_buy)
-                        # print(f"[GOV] Purchased {units_to_buy} units from service necessity firm {firm.unique_id} for ₺{units_to_buy * firm.product_price:.2f}")
+                        total_spent_on_necessities += actual_cost
+                        # print(f"[GOV] Purchased {units_to_buy} units from service necessity firm {firm.unique_id} for ₺{actual_cost:.2f}")
                         
+        return total_spent_on_necessities
+        
     def _calculate_unemployment_rate(self):
         """
         Calculate the unemployment rate based on the number of unemployed persons
         Returns the unemployment rate as a percentage
         """
-        # Identify all agents who could potentially be in the labor force (e.g., "Person" agents)
         person_agents = [
             agent for agent in self.model.agents
             if hasattr(agent, 'job_seeking') and hasattr(agent, 'employer')
         ]
 
-        # Define the labor force: employed people + unemployed people actively seeking jobs.
-        # An agent is in the labor force if they have an employer OR they are job_seeking.
+
         current_labor_force = [
             p for p in person_agents
-            if p.employer is not None or p.job_seeking  # p.job_seeking is True for unemployed seekers
+            if p.employer is not None or p.job_seeking 
         ]
 
         # Unemployed people are those in the labor force who do not have an employer.
-        # (Given the labor force definition, if employer is None, job_seeking must be True for them to be in current_labor_force)
         actively_unemployed_persons = [
             p for p in current_labor_force
             if p.employer is None
@@ -157,7 +203,6 @@ class GovernmentAgent(mesa.Agent):
         Calculate GDP by summing the value of all production (production * price)
         '''
 
-        # Calculate production by firms
         firms = [agent for agent in self.model.agents if hasattr(agent, 'produced_units')]
         
         # Sum the value of all production (production * price)
@@ -188,33 +233,39 @@ class GovernmentAgent(mesa.Agent):
         """
 
     def step(self):
+
         # Apply tax rates and collect taxes
         self.step_tax_revenue = self._collect_taxes()
-        self.reserves += self.step_tax_revenue
+        self.step_corporate_tax_revenue = self._collect_corporate_taxes()
+
+        self.reserves += self.step_tax_revenue + self.step_corporate_tax_revenue
         
-        # Check if reserves have increased by 20% or more since last step
-        reserve_growth_ratio = self.reserves / self.previous_reserves if self.previous_reserves > 0 else 1
-        temp_spending_boost = 1.0  # Default no boost
+        # Calculate and distribute unemployment payments
+        unemployment_payments_total = self._calculate_and_distribute_unemployment_payments()
+
+        # Calculate and distribute low-income transfers
+        low_income_transfers_total = self._calculate_and_distribute_low_income_transfers()
         
-        if reserve_growth_ratio >= 1.2:  # 20% or more increase
-            temp_spending_boost = 1.03  # 3% increase for this step only
-            self.step_public_spending *= temp_spending_boost
+        # self.step_public_spending = unemployment_payments_total + low_income_transfers_total
+        # TODO: after fixing initialization, this should be uncommented
+
+        self.reserves -= self.step_public_spending
+
+        government_necessity_spending_budget = self.reserves * 0.05
         
-        # New public spending distribution
-        self._distribute_public_spending() # Call the new method
+        # Execute government spending on necessity goods
+        necessity_goods_spent_total = self._execute_government_necessity_spending(government_necessity_spending_budget)
         
-        # Government spending is now handled by _distribute_public_spending, 
-        # but we still need to subtract the total from reserves.
-        self.reserves -= self.step_public_spending 
+        self.reserves -= necessity_goods_spent_total
+
+        print(f"[GOV] Reserves after spending: {self.reserves} | Unemployment payments: {unemployment_payments_total} | Low-income transfers: {low_income_transfers_total} | Necessity goods spent: {necessity_goods_spent_total}")
         
         self._calculate_unemployment_rate()
         self.GDP = self._calculate_gdp()
         
-        # Update previous_reserves for next step comparison
         self.previous_reserves = self.reserves
         
    
-
 
 
 
