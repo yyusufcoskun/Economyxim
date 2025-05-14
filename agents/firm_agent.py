@@ -24,7 +24,7 @@ class FirmAgent(mesa.Agent):
         self.produced_units = 0  # Track units produced
         
         # Pricing and financial parameters
-        self.capital = 0 # TODO give initial capital to all firms
+        self.capital = 1000000 # TODO give initial capital to all firms
         self.markup = markup
         self.product_price = self.production_cost * (1 + markup)  # Initialize with a non-zero price
         self.min_price = self.production_cost * 1.05  # Minimum 5% above production cost
@@ -176,30 +176,32 @@ class FirmAgent(mesa.Agent):
         self.demand_received += units  # used by household
 
     def adjust_production(self, sold_units):
-        """Adjust production level based on inventory and demand trends."""
-        if len(self.demand_history) == 0:
-            return  # Not enough history yet
-        
-        # Target inventory is just the average demand
-        target_inventory = self.average_demand * 1.3
-        
-        # Calculate how much we need to produce
-        inventory_gap = target_inventory - self.inventory
-        
-        # If gap is positive, we need to produce more
-        # If gap is negative, we don't produce
-        if inventory_gap > 0:
-            # Calculate how much of capacity to use
-            needed_production = inventory_gap
-            self.production_level = min(needed_production / self.labor_added_production_capacity, 1.0)
+        # Handle cases with no capacity or no history first
+        if self.labor_added_production_capacity <= 0:
+            self.production_level = 0.0
+            return
+        if not self.demand_history or self.average_demand == 0: # also check average_demand to prevent division by zero or weirdness
+            # If no history or average demand, and we want to produce,
+            # it's hard to apply the logic below. Default to a moderate level or 1.0 if inventory is low.
+            if self.inventory < self.production_capacity * 0.5: # Arbitrary low inventory threshold
+                 self.production_level = 1.0
+            else:
+                 self.production_level = 0.5
+            return
+
+        # Apply the new logic
+        if self.average_demand > self.inventory:
+            self.production_level = 1.0
+        elif self.inventory < self.average_demand * 1.1:
+            self.production_level = 1.0
         else:
-            # Don't produce if we already have enough inventory
-            self.production_level = 0.1
+            # This block executes if inventory >= average_demand * 1.1 AND average_demand <= inventory
+            self.production_level -= 0.1
         
-        # Ensure production level stays within bounds (allowing 0.0 now)
+        # Ensure production level stays within bounds [0.0, 1.0]
         self.production_level = min(max(self.production_level, 0.1), 1.0)
 
-    def adjust_price(self, sold_units, produced_units):
+    def adjust_price(self, sold_units, produced_units, cost_per_unit):
         """Adjust price based on market conditions and demand trends."""
         if produced_units == 0:
             return
@@ -228,9 +230,9 @@ class FirmAgent(mesa.Agent):
 
         # Adjust market pressure based on inventory levels
         if inventory_demand_ratio > 2.0:  # inventory is more than 2 times of demand
-            market_pressure -= 0.6  # price wants to drop
+            market_pressure -= 0.4  # price wants to drop
         elif inventory_demand_ratio > 1.5:
-            market_pressure -= 0.4
+            market_pressure -= 0.2
         elif inventory_demand_ratio < 0.5:  # demand is twice as much as inventory
             market_pressure += 0.2  # price wants to rise so that stock lasts
         elif inventory_demand_ratio < 0.2:  # demand is 5 times as much as inventory
@@ -272,7 +274,7 @@ class FirmAgent(mesa.Agent):
 
         # Update product price
         old_price = self.product_price
-        calculated_price = self.production_cost * (1 + self.markup)
+        calculated_price = cost_per_unit * (1 + self.markup)
         self.product_price = max(calculated_price, self.min_price)
         #print(f"[DEBUG] Firm {self.unique_id} price calculation in adjust_price: costs: {self.costs:.2f}, produced: {produced_units}, " + 
               #f"cost_per_unit: {cost_per_unit:.2f}, markup: {self.markup:.2f}, " +
@@ -537,14 +539,6 @@ class FirmAgent(mesa.Agent):
         if self.last_step_revenue_per_emp is None:
             self.last_step_revenue_per_emp = self.revenue_per_employee
         
-        # Make adjustments
-        self.adjust_price(sold_units, self.produced_units)
-        self.adjust_production(sold_units)
-        self.adjust_employees()
-
-        # Update historical metrics
-        self.last_step_revenue_per_emp = self.revenue_per_employee
-
         # Update demand history
         self.demand_history.append(self.demand_received)
         if len(self.demand_history) > self.demand_history_length:
@@ -556,6 +550,16 @@ class FirmAgent(mesa.Agent):
         else:
             # If we don't have enough history yet, use simple average
             self.average_demand = sum(self.demand_history) / len(self.demand_history)
+
+        # Make adjustments
+        self.adjust_price(sold_units, self.produced_units, cost_per_unit)
+        self.adjust_production(sold_units)
+        self.adjust_employees()
+
+        # Update historical metrics
+        self.last_step_revenue_per_emp = self.revenue_per_employee
+
+        
         
         # Reset demand for next step
         self.demand_received = 0

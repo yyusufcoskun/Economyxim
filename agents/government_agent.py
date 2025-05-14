@@ -234,12 +234,7 @@ class GovernmentAgent(mesa.Agent):
                     
         
     def step(self):
-
-        # Apply tax rates and collect taxes
-        self.step_tax_revenue = self._collect_taxes()
-        self.step_corporate_tax_revenue = self._collect_corporate_taxes()
-
-        self.reserves += self.step_tax_revenue + self.step_corporate_tax_revenue
+        # Use previous reserves for current spending
         
         # Calculate and distribute unemployment payments
         unemployment_payments_total = self._calculate_and_distribute_unemployment_payments()
@@ -247,23 +242,34 @@ class GovernmentAgent(mesa.Agent):
         # Calculate and distribute low-income transfers
         low_income_transfers_total = self._calculate_and_distribute_low_income_transfers()
         
-        # self.step_public_spending = unemployment_payments_total + low_income_transfers_total
-        # TODO: after fixing initialization, this should be uncommented
+        # Set initial public spending
+        self.step_public_spending = unemployment_payments_total + low_income_transfers_total
 
+        # Reduce reserves based on initial spending
         self.reserves -= self.step_public_spending
 
+        # Calculate government necessity spending from remaining reserves
         government_necessity_spending_budget = self.reserves * 0.05
         
         # Execute government spending on necessity goods
         necessity_goods_spent_total = self._execute_government_necessity_spending(government_necessity_spending_budget)
         
+        # Update reserves and total public spending
         self.reserves -= necessity_goods_spent_total
+        self.step_public_spending += necessity_goods_spent_total
 
-        # print(f"[GOV] Reserves after spending: {self.reserves} | Unemployment payments: {unemployment_payments_total} | Low-income transfers: {low_income_transfers_total} | Necessity goods spent: {necessity_goods_spent_total}")
+        # Now collect taxes for the next step
+        self.step_tax_revenue = self._collect_taxes()
+        self.step_corporate_tax_revenue = self._collect_corporate_taxes()
+
+        # Add tax revenue to reserves for next step's spending
+        self.reserves += self.step_tax_revenue + self.step_corporate_tax_revenue
         
+        # Calculate other economic indicators
         self._calculate_unemployment_rate()
         self.GDP = self._calculate_gdp()
         
+        # Store current reserves for reference in next step
         self.previous_reserves = self.reserves
         
    
