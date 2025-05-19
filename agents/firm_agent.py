@@ -34,10 +34,12 @@ class FirmAgent(mesa.Agent):
         self.costs = 0
         self.profit = 0
         self.last_step_profit = None  # Profit from the previous step
+        self.units_sold_this_step = 0 # ADDED
+        self.total_requested_this_step = 0 # ADDED
         
         # Inventory and demand tracking
         self.inventory = self.production_capacity  # Initialize with some inventory
-        self.demand_received = 0  # Demand received from households
+        #self.demand_received = 0  # Demand received from households
         self.unmet_demand = 0
         self.demand_history = []
         self.demand_history_length = 5  # How many steps to track
@@ -172,10 +174,24 @@ class FirmAgent(mesa.Agent):
 
         print(f"[INFO] Firm {self.unique_id} ({self.firm_area}): Initial workforce population complete. Target: {target_count}, Actual Hired: {self.num_employees}")
 
-    def receive_demand(self, units):
-        """Record demand received from households."""
-        #print(f"[DEBUG] Firm {self.unique_id} ({self.firm_type}/{self.firm_area}) received demand for {units} units, price: {self.product_price:.2f}")
-        self.demand_received += units  # used by household
+    def fulfill_demand_request(self, units_requested):
+        """
+        Attempts to fulfill a demand request from current inventory.
+        Updates inventory and tracks units sold this step.
+        Also tracks total units requested this step.
+        Returns the number of units actually sold/fulfilled.
+        """
+        can_fulfill = min(units_requested, self.inventory)
+        
+        if can_fulfill > 0:
+            self.inventory -= can_fulfill
+            self.units_sold_this_step += can_fulfill
+            # print(f"[DEBUG] Firm {self.unique_id} fulfilled {can_fulfill} units. Inventory now: {self.inventory}. Requested: {units_requested}")
+        # else:
+            # print(f"[DEBUG] Firm {self.unique_id} could not fulfill. Requested: {units_requested}, Inventory: {self.inventory}")
+
+        self.total_requested_this_step += units_requested
+        return can_fulfill
 
     def adjust_production(self, sold_units):
         # Handle cases with no capacity or no history first
@@ -209,7 +225,7 @@ class FirmAgent(mesa.Agent):
             return
         
         # Key market indicators
-        inventory_demand_ratio = self.inventory / (self.demand_received + 1e-6)  # how much inventory compared to demand
+        inventory_demand_ratio = self.inventory / (self.total_requested_this_step + 1e-6)  # how much inventory compared to demand
         sell_through_rate = sold_units / (produced_units + 1e-6)  # what percentage of new products are sold
 
         # Calculate demand trend from history
@@ -520,13 +536,15 @@ class FirmAgent(mesa.Agent):
         # Ensure cost_per_unit is not zero to avoid zero prices
         cost_per_unit = self.costs / (self.produced_units + 1e-6)
 
-        # Sell products
-        sold_units = min(self.demand_received, self.inventory)
+        # Sales have already happened via fulfill_demand_request by Government and Households.
+        # self.inventory is already updated.
+        # self.units_sold_this_step reflects total sales for this step.
+        sold_units = self.units_sold_this_step 
+        
         self.revenue = self.product_price * sold_units
-        self.inventory -= sold_units
+        # Note: self.inventory was already reduced in fulfill_demand_request
 
         # Profit
-        
         self.profit = self.revenue - self.costs
 
         if self.profit > 0:
@@ -536,7 +554,7 @@ class FirmAgent(mesa.Agent):
             self.capital += self.profit
         
         # Calculate unmet demand
-        self.unmet_demand = self.demand_received - sold_units # Demand received this step MINUS what was sold
+        self.unmet_demand = self.total_requested_this_step - self.units_sold_this_step
         
         # Update the revenue per employee
         self.revenue_per_employee = self.revenue / max(self.num_employees, 1) # Avoid division by zero
@@ -546,17 +564,20 @@ class FirmAgent(mesa.Agent):
         if self.last_step_revenue_per_emp is None:
             self.last_step_revenue_per_emp = self.revenue_per_employee
         
-        # Update demand history
-        self.demand_history.append(self.demand_received)
+        # Update demand history with actual units sold
+        self.demand_history.append(self.total_requested_this_step)
         if len(self.demand_history) > self.demand_history_length:
             self.demand_history.pop(0)  # remove oldest entry
         
         # Calculate moving average with weights (more recent demand counts more)
-        if len(self.demand_history) == self.demand_history_length:
-            self.average_demand = sum(d * w for d, w in zip(self.demand_history, self.demand_averaging_weights))
+        if self.demand_history: # Check if not empty
+            if len(self.demand_history) == self.demand_history_length:
+                self.average_demand = sum(d * w for d, w in zip(self.demand_history, self.demand_averaging_weights))
+            else:
+                # If we don't have enough history yet, use simple average
+                self.average_demand = sum(self.demand_history) / len(self.demand_history)
         else:
-            # If we don't have enough history yet, use simple average
-            self.average_demand = sum(self.demand_history) / len(self.demand_history)
+            self.average_demand = 0 # No history, no average demand
 
         # Make adjustments
         self.adjust_price(sold_units, self.produced_units, cost_per_unit)
@@ -565,9 +586,9 @@ class FirmAgent(mesa.Agent):
 
         # Update historical metrics
         self.last_step_revenue_per_emp = self.revenue_per_employee
-
         
-        
-        # Reset demand for next step
-        self.demand_for_tracking = self.demand_received
-        self.demand_received = 0
+        # Reset step-specific counters
+        self.demand_for_tracking = self.total_requested_this_step
+        self.units_sold_this_step = 0
+        self.total_requested_this_step = 0
+        # self.demand_received = 0 # Old reset, no longer primary accumulator

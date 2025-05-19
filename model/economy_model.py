@@ -38,7 +38,7 @@ class EconomicSimulationModel(mesa.Model):
                 "RevenuePerEmployee": lambda a: getattr(a, "revenue_per_employee", None),
                 "ProductionLevel": lambda a: getattr(a, "production_level", None),
                 "NumEmployees": lambda a: getattr(a, "num_employees", None),
-                "DemandReceived": lambda a: getattr(a, "demand_received", None),
+                "DemandReceived": lambda a: getattr(a, "demand_for_tracking", None),
                 "InventoryDemandRatio": lambda a: getattr(a, "inventory_demand_ratio", None),
                 "SellThroughRate": lambda a: getattr(a, "sell_through_rate", None),
                 "ProductionCapacity": lambda a: getattr(a, "production_capacity", None),

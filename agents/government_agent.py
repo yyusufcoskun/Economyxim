@@ -4,6 +4,7 @@ import pandas as pd
 from .person_agent import PersonAgent
 from .household_agent import HouseholdAgent
 from .firm_agent import FirmAgent
+import random
 
 
 class GovernmentAgent(mesa.Agent):
@@ -195,45 +196,54 @@ class GovernmentAgent(mesa.Agent):
         spending_for_necessity_goods = budget
         
         # Split budget for necessity types (e.g., physical and service)
-        spending_per_necessity_type = spending_for_necessity_goods / 2
+        # Assuming two main necessity types for simplicity of budget splitting
+        necessity_categories_to_spend_on = ["physical", "service"]
+        if not necessity_categories_to_spend_on:
+            return 0.0
+            
+        budget_per_category = spending_for_necessity_goods / len(necessity_categories_to_spend_on)
 
-        necessity_firms_physical = [
-            f for f in self.model.agents 
-            if hasattr(f, 'firm_type') and f.firm_type == "necessity" 
-            and hasattr(f, 'firm_area') and f.firm_area == "physical"
-            and hasattr(f, 'product_price') and f.product_price > 0
-        ]
-        necessity_firms_service = [
-            f for f in self.model.agents 
-            if hasattr(f, 'firm_type') and f.firm_type == "necessity" 
-            and hasattr(f, 'firm_area') and f.firm_area == "service"
-            and hasattr(f, 'product_price') and f.product_price > 0
-        ]
+        for category_area in necessity_categories_to_spend_on:
+            remaining_budget_for_this_category = budget_per_category
+            
+            potential_firms_for_category = [
+                f for f in self.model.agents 
+                if hasattr(f, 'firm_type') and f.firm_type == "necessity" 
+                and hasattr(f, 'firm_area') and f.firm_area == category_area
+                and hasattr(f, 'product_price') and f.product_price > 0
+                #and hasattr(f, 'inventory') and f.inventory > 0
+                # fulfill_demand_request will check inventory, so initial inventory check here is optional
+            ]
+            random.shuffle(potential_firms_for_category)
 
-        # Buy from physical necessity firms
-        if necessity_firms_physical and spending_per_necessity_type > 0:
-            budget_per_physical_firm = spending_per_necessity_type / len(necessity_firms_physical)
-            for firm in necessity_firms_physical:
-                if firm.product_price > 0 and budget_per_physical_firm > 0:
-                    units_to_buy = int(budget_per_physical_firm / firm.product_price)
-                    if units_to_buy > 0:
-                        actual_cost = units_to_buy * firm.product_price
-                        firm.receive_demand(units_to_buy)
-                        total_spent_on_necessities += actual_cost
-                        # print(f"[GOV] Purchased {units_to_buy} units from physical necessity firm {firm.unique_id} for ₺{actual_cost:.2f}")
+            # print(f"[GOV DEBUG] Attempting to spend ₺{remaining_budget_for_this_category:.2f} on {category_area}. Found {len(potential_firms_for_category)} firms.")
 
-        # Buy from service necessity firms
-        if necessity_firms_service and spending_per_necessity_type > 0:
-            budget_per_service_firm = spending_per_necessity_type / len(necessity_firms_service)
-            for firm in necessity_firms_service:
-                if firm.product_price > 0 and budget_per_service_firm > 0:
-                    units_to_buy = int(budget_per_service_firm / firm.product_price)
-                    if units_to_buy > 0:
-                        actual_cost = units_to_buy * firm.product_price
-                        firm.receive_demand(units_to_buy)
-                        total_spent_on_necessities += actual_cost
-                        # print(f"[GOV] Purchased {units_to_buy} units from service necessity firm {firm.unique_id} for ₺{actual_cost:.2f}")
-                        
+            while remaining_budget_for_this_category > 0.01 and potential_firms_for_category:
+                chosen_firm = potential_firms_for_category.pop(0) # Get and remove first firm
+
+                if chosen_firm.product_price <= 0: # Should not happen if filtered above, but safety check
+                    continue
+
+                # How many units can government try to buy with its remaining budget for this category from this firm
+                desired_units = int(remaining_budget_for_this_category / chosen_firm.product_price)
+
+                if desired_units <= 0:
+                    # Cannot even afford one unit from this firm with remaining budget for category
+                    # Try next firm, maybe it's cheaper (though list is shuffled)
+                    continue 
+                
+                # print(f"[GOV DEBUG] Trying firm {chosen_firm.unique_id} ({category_area}) for {desired_units} units. Budget left for cat: {remaining_budget_for_this_category:.2f}")
+
+                actually_bought_units = chosen_firm.fulfill_demand_request(desired_units)
+
+                if actually_bought_units > 0:
+                    actual_cost_this_transaction = actually_bought_units * chosen_firm.product_price
+                    total_spent_on_necessities += actual_cost_this_transaction
+                    remaining_budget_for_this_category -= actual_cost_this_transaction
+                    # print(f"[GOV DEBUG] Bought {actually_bought_units} from {chosen_firm.unique_id}. Cost: {actual_cost_this_transaction:.2f}. Budget left for cat: {remaining_budget_for_this_category:.2f}")
+                # else:
+                    # print(f"[GOV DEBUG] Firm {chosen_firm.unique_id} could not fulfill {desired_units} units.")
+
         return total_spent_on_necessities
         
     def _calculate_unemployment_rate(self):

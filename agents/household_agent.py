@@ -169,15 +169,14 @@ class HouseholdAgent(mesa.Agent):
             if chosen_firm.product_price > 0: # Should always be true here due to initial filtering
                 desired_units = int(remaining_spend_target / chosen_firm.product_price)
             
-            units_to_buy = min(desired_units, chosen_firm.inventory) # Max buy is firm's current inventory
+            if desired_units > 0:
+                # MODIFIED: Call the new method on the firm
+                actually_bought_units = chosen_firm.fulfill_demand_request(desired_units)
                 
-            if units_to_buy > 0:
-                cost_this_transaction = units_to_buy * chosen_firm.product_price
-                
-                chosen_firm.receive_demand(units_to_buy) # Firm updates its inventory
-                
-                total_spent_for_category += cost_this_transaction
-                remaining_spend_target -= cost_this_transaction
+                if actually_bought_units > 0:
+                    cost_this_transaction = actually_bought_units * chosen_firm.product_price
+                    total_spent_for_category += cost_this_transaction
+                    remaining_spend_target -= cost_this_transaction
             
             # Remove the chosen_firm from potential_purchase_candidates to ensure it's not picked again
             # in this call, regardless of purchase, to ensure progression.
@@ -245,15 +244,14 @@ class HouseholdAgent(mesa.Agent):
                 if chosen_firm.product_price > 0: # Safety check
                     desired_units = int(remaining_budget_for_this_type / chosen_firm.product_price)
                 
-                units_to_buy = min(desired_units, chosen_firm.inventory)
-                    
-                if units_to_buy > 0:
-                    actual_cost_this_transaction = units_to_buy * chosen_firm.product_price
-                    
-                    chosen_firm.receive_demand(units_to_buy) # Firm updates inventory
-                    
-                    spent_for_this_type += actual_cost_this_transaction
-                    remaining_budget_for_this_type -= actual_cost_this_transaction
+                if desired_units > 0:
+                    # MODIFIED: Call new firm method
+                    actually_bought_units = chosen_firm.fulfill_demand_request(desired_units)
+
+                    if actually_bought_units > 0:
+                        actual_cost_this_transaction = actually_bought_units * chosen_firm.product_price
+                        spent_for_this_type += actual_cost_this_transaction
+                        remaining_budget_for_this_type -= actual_cost_this_transaction
                 
                 # Remove the chosen_firm from the list for this luxury type to ensure progression
                 potential_firms_for_type.remove(chosen_firm)
