@@ -27,6 +27,8 @@ class FirmAgent(mesa.Agent):
         self.capital = 1000000 # TODO give initial capital to all firms
         self.markup = markup
         self.product_price = self.production_cost * (1 + markup)  # Initialize with a non-zero price
+        self.price_one_step_ago = self.product_price # Price from one step ago
+        self.price_two_steps_ago = self.product_price # Price from two steps ago
         self.min_price = self.production_cost * 1.05  # Minimum 5% above production cost
         self.revenue = 0
         self.costs = 0
@@ -34,7 +36,7 @@ class FirmAgent(mesa.Agent):
         self.last_step_profit = None  # Profit from the previous step
         
         # Inventory and demand tracking
-        self.inventory = self.production_capacity * 0.1  # Initialize with some inventory
+        self.inventory = self.production_capacity  # Initialize with some inventory
         self.demand_received = 0  # Demand received from households
         self.unmet_demand = 0
         self.demand_history = []
@@ -44,7 +46,7 @@ class FirmAgent(mesa.Agent):
         # Employee related parameters
         self.employees = []
         self.num_employees = 0
-        self.entry_wage = entry_wage
+        self.entry_wage = entry_wage # REVERT to using original entry_wage
         self.wage_multipliers = {"entry": 1.0, "mid": 1.4, "senior": 2.0}
         self.revenue_per_employee = 0
         self.last_step_revenue_per_emp = None        
@@ -196,7 +198,7 @@ class FirmAgent(mesa.Agent):
             self.production_level = 1.0
         else:
             # This block executes if inventory >= average_demand * 1.1 AND average_demand <= inventory
-            self.production_level -= 0.1
+            self.production_level -= 0.05
         
         # Ensure production level stays within bounds [0.0, 1.0]
         self.production_level = min(max(self.production_level, 0.1), 1.0)
@@ -234,9 +236,9 @@ class FirmAgent(mesa.Agent):
         elif inventory_demand_ratio > 1.5:
             market_pressure -= 0.2
         elif inventory_demand_ratio < 0.5:  # demand is twice as much as inventory
-            market_pressure += 0.2  # price wants to rise so that stock lasts
+            market_pressure += 0.5  # price wants to rise so that stock lasts
         elif inventory_demand_ratio < 0.2:  # demand is 5 times as much as inventory
-            market_pressure += 0.4
+            market_pressure += 1
 
         # Adjust market pressure based on sales performance
         if sell_through_rate < 0.4:  # poor sales
@@ -491,6 +493,11 @@ class FirmAgent(mesa.Agent):
 
     def step(self):
         """Execute one step of the firm's operations."""
+
+        # Update historical prices for 2-step inflation calculation
+        self.price_two_steps_ago = self.price_one_step_ago
+        self.price_one_step_ago = self.product_price # This product_price is from end of previous step
+
         # Producing goods and adding them to the inventory
         added_labor = self._calculate_total_labor()
         
@@ -562,4 +569,5 @@ class FirmAgent(mesa.Agent):
         
         
         # Reset demand for next step
+        self.demand_for_tracking = self.demand_received
         self.demand_received = 0

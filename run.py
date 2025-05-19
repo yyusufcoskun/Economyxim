@@ -110,6 +110,36 @@ def main():
         results_folder=output_results_folder
     )
 
+    # Add Gini coefficient graph
+    analysis.create_plot(
+        df=model_data,
+        plot_type="line",
+        columns=["Gini Coefficient"],
+        title="Gini Coefficient (Income Inequality) Over Time",
+        xlabel="Time Step",
+        ylabel="Gini Coefficient",
+        figsize=(12, 6),
+        grid=True,
+        legend=True,
+        filename="government_gini-coefficient.png",
+        results_folder=output_results_folder
+    )
+
+    # Add Inflation Rate graph
+    analysis.create_plot(
+        df=model_data,
+        plot_type="line", 
+        columns=["Inflation Rate"],
+        title="Inflation Rate Over Time",
+        xlabel="Time Step",
+        ylabel="Inflation Rate (%)",
+        figsize=(12, 6),
+        grid=True,
+        legend=True,
+        filename="government_inflation-rate.png",
+        results_folder=output_results_folder
+    )
+
     analysis.create_time_series_by_type(
         df=agent_data,
         value_col="Inventory",
@@ -309,7 +339,8 @@ def main():
         aggfunc="mean" 
     )
 
-    # Add new graph for average total household savings
+
+    '''# Add new graph for average total household savings
     household_data = agent_data.reset_index()[agent_data.reset_index()["TotalHouseholdSavings"].notnull()]
     analysis.create_plot(
         df=household_data,
@@ -323,7 +354,7 @@ def main():
         legend=True,
         filename="household_average-savings.png",
         results_folder=output_results_folder
-    )
+    )'''
 
 
     

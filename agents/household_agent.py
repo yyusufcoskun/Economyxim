@@ -25,7 +25,7 @@ class HouseholdAgent(mesa.Agent):
         super().__init__(model)
 
         # Basic household attributes
-        # self.num_people = num_people # This will be tracked by self.current_population after populating
+        self.num_people = num_people # Target population for this household
         self.income_tax_rate = income_tax_rate
         
         # Financial metrics 
@@ -43,63 +43,11 @@ class HouseholdAgent(mesa.Agent):
         self.num_not_seeking_job = 0 # This will be updated based on actual members
         self.num_seeking_job = 0 # This will be updated based on actual members
         
-        # Create and store household members
+        # Store household members
         self.members = []
-        self.current_population = 0 # New: tracks actual number of members added
-        # Removed old loop: for i in range(num_people): ...
+        self.current_population = 0 # Actual number of members added
 
-        self._populate_household(num_people) # New: Call to populate method
-
-    def _populate_household(self, target_population):
-        """
-        Populates the household with PersonAgents from the model's available pool,
-        prioritizing employed individuals, then unemployed, up to the target_population.
-        """
-        # print(f"[DEBUG] Household {self.unique_id}: Populating. Target: {target_population}. Available persons in model: {len(self.model.available_persons) if hasattr(self.model, 'available_persons') else 'N/A'}")
-        if not hasattr(self.model, 'available_persons'):
-            print(f"[WARNING] Household {self.unique_id}: self.model.available_persons does not exist. Cannot populate.")
-            return
-
-        # Phase 1: Add employed persons
-        # print(f"[DEBUG] Household {self.unique_id}: Phase 1 (Employed). Current pop: {self.current_population}/{target_population}")
-        available_persons_copy = list(self.model.available_persons)
-        random.shuffle(available_persons_copy)
-
-        for person_to_add in available_persons_copy:
-            if self.current_population >= target_population:
-                break 
-            
-            if person_to_add.household is None and person_to_add.employer is not None:
-                # print(f"[DEBUG] Household {self.unique_id}: Adding employed Person {person_to_add.unique_id} (Employer: {person_to_add.employer.unique_id if person_to_add.employer else 'None'}).")
-                person_to_add.household = self
-                self.members.append(person_to_add)
-                self.current_population += 1
-                if person_to_add in self.model.available_persons: 
-                    self.model.available_persons.remove(person_to_add)
-        
-        # print(f"[DEBUG] Household {self.unique_id}: After Phase 1. Current pop: {self.current_population}/{target_population}. Model available: {len(self.model.available_persons)}")
-
-        if self.current_population < target_population:
-            # print(f"[DEBUG] Household {self.unique_id}: Phase 2 (Unemployed). Current pop: {self.current_population}/{target_population}")
-            available_persons_copy = list(self.model.available_persons) 
-            random.shuffle(available_persons_copy)
-
-            for person_to_add in available_persons_copy:
-                if self.current_population >= target_population:
-                    break
-
-                if person_to_add.household is None and person_to_add.employer is None:
-                    # print(f"[DEBUG] Household {self.unique_id}: Adding unemployed Person {person_to_add.unique_id}.")
-                    person_to_add.household = self
-                    self.members.append(person_to_add)
-                    self.current_population += 1
-                    if person_to_add in self.model.available_persons: 
-                        self.model.available_persons.remove(person_to_add)
-            # print(f"[DEBUG] Household {self.unique_id}: After Phase 2. Current pop: {self.current_population}/{target_population}. Model available: {len(self.model.available_persons)}")
-        
-        self.num_people = self.current_population 
-        self._update_employment_counts()
-        #print(f"[INFO] Household {self.unique_id}: Population complete. Final size: {self.num_people} (Target: {target_population})")
+        # self._populate_household(num_people) # Removed: Population will be handled by the model
 
     def _update_employment_counts(self):
         """Helper to update employment related counts based on current members."""
@@ -120,99 +68,130 @@ class HouseholdAgent(mesa.Agent):
         # if self.num_working_people != old_working or self.num_seeking_job != old_seeking or self.num_not_seeking_job != old_not_seeking:
             # print(f"[DEBUG] Household {self.unique_id} employment counts updated: Working={self.num_working_people}, Seeking={self.num_seeking_job}, NotSeeking={self.num_not_seeking_job}")
 
-    def _get_cheapest_firm(self, firm_category):
+    def _get_cheapest_firm(self, firm_category, candidate_firms=None):
         """
-        Find the cheapest 20% of firms in a category and randomly select one.
+        Find the cheapest 25% of firms in a category (with available inventory)
+        and randomly select one.
         
         This simulates households looking for good deals but not always finding
-        the absolute cheapest option.
+        the absolute cheapest option. Firms must have inventory > 0.
         
         Args:
             firm_category: The type of firm (e.g., "physical", "service", "technical")
+            candidate_firms: Optional list of firms to consider. If None, searches all model agents.
             
         Returns:
-            A randomly chosen firm from the cheapest 20% in that category, or None if no firms available
+            A randomly chosen firm from the cheapest 25% in that category with inventory, 
+            or None if no suitable firms available.
         """
-        # Find all firms of the specified category
-        firms_in_category = [
-            a for a in self.model.agents
-            if hasattr(a, "firm_type") and a.firm_area == firm_category
-            and hasattr(a, "product_price") and a.product_price > 0
-        ]
+        if candidate_firms is None:
+            # Find all firms of the specified category with price > 0 and inventory > 0
+            firms_to_consider = [
+                a for a in self.model.agents
+                if hasattr(a, "firm_type") and a.firm_area == firm_category
+                and hasattr(a, "product_price") and a.product_price > 0
+                and hasattr(a, "inventory") and a.inventory > 0  # Added inventory check
+            ]
+        else:
+            # Filter the provided candidates to ensure they still meet criteria (especially inventory)
+            firms_to_consider = [
+                f for f in candidate_firms
+                if hasattr(f, "firm_type") and f.firm_area == firm_category # Redundant if candidate_firms are pre-filtered by type
+                and hasattr(f, "product_price") and f.product_price > 0
+                and hasattr(f, "inventory") and f.inventory > 0 # Ensure inventory is still positive
+            ]
         
-        if not firms_in_category:
+        if not firms_to_consider:
             return None
             
         # Sort by price (cheapest first)
-        firms_in_category.sort(key=lambda f: f.product_price)
+        firms_to_consider.sort(key=lambda f: f.product_price)
         
         # Take cheapest 25% of firms
-        top_25_percent_count = max(1, int(len(firms_in_category) * 0.25))
-        cheapest_firms = firms_in_category[:top_25_percent_count]
+        top_25_percent_count = max(1, int(len(firms_to_consider) * 0.25))
+        cheapest_firms = firms_to_consider[:top_25_percent_count]
         
         # Choose one randomly from the cheapest firms
-        return random.choice(cheapest_firms)
+        return random.choice(cheapest_firms) if cheapest_firms else None
 
     def _calculate_cost_and_buy(self, firm_category, target_spend):
         """
-        Calculate cost and buy goods from a firm in a category.
+        Calculate cost and buy goods from firms in a category, attempting to meet target_spend.
+        This method will try multiple firms if necessary and available.
         
-        Used for MANDATORY necessity spending that households must make regardless
-        of their financial situation.
-        - Low income households always look for the cheapest firms
-        - Middle and high income households randomly select firms
+        - Ensures firms have inventory and positive price before attempting purchase.
+        - Actual units bought are limited by firm's inventory.
+        - Households only pay for what is actually bought.
+        - Low wealth households use _get_cheapest_firm on available candidates;
+          middle/high wealth households choose randomly from available candidates.
         
         Args:
             firm_category: The type of firm to buy from
             target_spend: The target amount to spend
             
         Returns:
-            The actual amount spent
+            The actual total amount spent in this category.
         """
-        # Debug how many firms are available with prices > 0
-        firms_in_category = [
+        total_spent_for_category = 0.0
+        remaining_spend_target = target_spend
+
+        # Get a list of all firms initially eligible (price > 0, inventory > 0)
+        potential_purchase_candidates = [
             a for a in self.model.agents
             if hasattr(a, "firm_type") and a.firm_area == firm_category
             and hasattr(a, "product_price") and a.product_price > 0
+            and hasattr(a, "inventory") and a.inventory > 0
         ]
-       # print(f"[DEBUG] Household {self.unique_id} found {len(firms_in_category)} {firm_category} firms with price > 0")
         
-        # Select firm based on income bracket
-        chosen_firm = None
-        
-        if hasattr(self, 'wealth_bracket') and self.wealth_bracket in ["middle", "high"]:
-            # Middle and high income households select random firms
-            if firms_in_category:
-                chosen_firm = random.choice(firms_in_category)
-        else:
-            # Low income households look for the cheapest options
-            chosen_firm = self._get_cheapest_firm(firm_category)
-        
-        if chosen_firm is None:
-            #print(f"[DEBUG] Household {self.unique_id} couldn't find any {firm_category} firms to buy from")
-            return 0.0
+        random.shuffle(potential_purchase_candidates) # Shuffle to vary order for random picks
+
+        while remaining_spend_target > 0.01 and potential_purchase_candidates: # 0.01 for float precision
+            chosen_firm = None
             
-        # Calculate how many units to buy based on the target spend
-        if chosen_firm.product_price > 0:
-            units_to_buy = int(target_spend / chosen_firm.product_price)
-            #print(f"[DEBUG] Household {self.unique_id} buying {units_to_buy} units from {firm_category} firm {chosen_firm.unique_id} at price {chosen_firm.product_price:.2f}")
-        else:
-            units_to_buy = 0
-            #print(f"[DEBUG] Household {self.unique_id} found {firm_category} firm {chosen_firm.unique_id} with zero price")
+            # Filter for candidates that *still* have inventory (it might change between iterations)
+            currently_available_firms = [f for f in potential_purchase_candidates if f.inventory > 0]
+            if not currently_available_firms:
+                break # No firms with inventory left in our candidate list
+
+            if hasattr(self, 'wealth_bracket') and self.wealth_bracket in ["middle", "high"]:
+                chosen_firm = random.choice(currently_available_firms)
+            else: # Low wealth or wealth_bracket not set
+                # Pass the currently_available_firms to _get_cheapest_firm
+                # _get_cheapest_firm itself will sort them by price and pick from the cheapest 25%
+                chosen_firm = self._get_cheapest_firm(firm_category, candidate_firms=currently_available_firms)
             
-        if units_to_buy > 0:
-            actual_cost = units_to_buy * chosen_firm.product_price
-            chosen_firm.receive_demand(units_to_buy)
-            return actual_cost
-        else:
-            return 0.0
+            if chosen_firm is None:
+                # No firm could be chosen (e.g., list was empty, or _get_cheapest_firm returned None)
+                break 
+
+            # Calculate how many units to buy based on remaining target spend and firm's inventory
+            desired_units = 0
+            if chosen_firm.product_price > 0: # Should always be true here due to initial filtering
+                desired_units = int(remaining_spend_target / chosen_firm.product_price)
+            
+            units_to_buy = min(desired_units, chosen_firm.inventory) # Max buy is firm's current inventory
+                
+            if units_to_buy > 0:
+                cost_this_transaction = units_to_buy * chosen_firm.product_price
+                
+                chosen_firm.receive_demand(units_to_buy) # Firm updates its inventory
+                
+                total_spent_for_category += cost_this_transaction
+                remaining_spend_target -= cost_this_transaction
+            
+            # Remove the chosen_firm from potential_purchase_candidates to ensure it's not picked again
+            # in this call, regardless of purchase, to ensure progression.
+            potential_purchase_candidates.remove(chosen_firm)
+
+        return total_spent_for_category
     
     def _spend_on_luxuries(self, remaining_budget, percentage_range):
         """
-        Spend on luxury items using a percentage of the remaining budget.
+        Spend on luxury items using a percentage of the remaining budget, with iterative purchasing.
         
         Middle and high income households spend on 2 randomly selected types of
-        luxury goods with a variable portion of their income.
+        luxury goods. For each type, they attempt to spend the allocated budget by 
+        iteratively trying available firms with inventory.
         
         Args:
             remaining_budget: The amount of money available after necessities
@@ -224,49 +203,64 @@ class HouseholdAgent(mesa.Agent):
         if remaining_budget <= 0:
             return 0.0
             
-        # Determine percentage of remaining budget to spend on luxuries
         min_percent, max_percent = percentage_range
         spend_percent = random.uniform(min_percent, max_percent)
-        luxury_budget = remaining_budget * spend_percent
+        total_luxury_budget_to_spend = remaining_budget * spend_percent
         
         luxury_types = ["technical", "social", "analytical", "creative"]
-            
-        # Randomly select 2 luxury types to purchase from
+        if len(luxury_types) < 2:
+            return 0.0 # Not enough types to choose from
+
         chosen_luxury_types = random.sample(luxury_types, 2)
         
-        # Split luxury budget equally between the two types
-        budget_per_luxury = luxury_budget / 2
-        total_luxury_spent = 0.0
+        if not chosen_luxury_types: # Should not happen if luxury_types has >= 2 elements
+            return 0.0
+
+        budget_per_luxury_type = total_luxury_budget_to_spend / len(chosen_luxury_types)
+        total_actual_luxury_spent = 0.0
         
-        # Spend on each chosen luxury type
         for l_type in chosen_luxury_types:
-            '''
-            # Previous approach: Get cheapest firm
-            chosen_firm = self._get_cheapest_firm(l_type)
-            '''
-            matching_firms = [firm for firm in self.model.agents 
-                            if hasattr(firm, 'firm_area') and firm.firm_area == l_type]
+            spent_for_this_type = 0.0
+            remaining_budget_for_this_type = budget_per_luxury_type
+
+            # Get a list of all firms initially eligible for this luxury type
+            potential_firms_for_type = [
+                firm for firm in self.model.agents 
+                if hasattr(firm, 'firm_area') and firm.firm_area == l_type
+                and hasattr(firm, 'product_price') and firm.product_price > 0
+                and hasattr(firm, 'inventory') and firm.inventory > 0
+            ]
+            random.shuffle(potential_firms_for_type) # Shuffle for random selection order
+
+            while remaining_budget_for_this_type > 0.01 and potential_firms_for_type:
+                # Filter for candidates that *still* have inventory
+                currently_available_firms = [f for f in potential_firms_for_type if f.inventory > 0]
+                if not currently_available_firms:
+                    break # No firms with inventory left in our candidate list for this type
+
+                chosen_firm = random.choice(currently_available_firms)
+                # chosen_firm is guaranteed to have product_price > 0 and inventory > 0 here
+
+                desired_units = 0
+                if chosen_firm.product_price > 0: # Safety check
+                    desired_units = int(remaining_budget_for_this_type / chosen_firm.product_price)
+                
+                units_to_buy = min(desired_units, chosen_firm.inventory)
+                    
+                if units_to_buy > 0:
+                    actual_cost_this_transaction = units_to_buy * chosen_firm.product_price
+                    
+                    chosen_firm.receive_demand(units_to_buy) # Firm updates inventory
+                    
+                    spent_for_this_type += actual_cost_this_transaction
+                    remaining_budget_for_this_type -= actual_cost_this_transaction
+                
+                # Remove the chosen_firm from the list for this luxury type to ensure progression
+                potential_firms_for_type.remove(chosen_firm)
             
-            if not matching_firms:
-                continue
+            total_actual_luxury_spent += spent_for_this_type
                 
-            chosen_firm = random.choice(matching_firms)
-            
-            if chosen_firm is None:
-                continue
-                
-            # Calculate units to buy based on allocated budget
-            if chosen_firm.product_price > 0:
-                units_to_buy = int(budget_per_luxury / chosen_firm.product_price)
-            else:
-                units_to_buy = 0
-                
-            if units_to_buy > 0:
-                actual_cost = units_to_buy * chosen_firm.product_price
-                chosen_firm.receive_demand(units_to_buy)
-                total_luxury_spent += actual_cost
-                
-        return total_luxury_spent
+        return total_actual_luxury_spent
 
     def step(self):
         """
@@ -284,7 +278,8 @@ class HouseholdAgent(mesa.Agent):
         self.household_step_income = sum(member.wage for member in employed_members)
 
         # Each person requires 19250 in necessity spending a month, split 50/50 between physical and service
-        necessity_spend_per_person = 57750  
+        necessity_spend_per_person = 57750
+          
         # Every household must attempt to spend the target amount on necessities
         total_necessity_target = necessity_spend_per_person * self.num_people
 
@@ -310,50 +305,57 @@ class HouseholdAgent(mesa.Agent):
 
         # ---------- NECESSITY SPENDING ----------
         
-        # Split necessity budget between physical goods and services (50/50)
-        physical_target = total_necessity_target * 0.5
-        service_target = total_necessity_target * 0.5
+        # Calculate total available funds (post-tax income + savings)
+        available_funds = self.household_step_income_posttax + self.total_household_savings
         
-        # Make mandatory purchases for necessities, if income is low and household savings are low, buy necessities with post tax income
-        if self.income_bracket == "low" and self.household_step_income_posttax < total_necessity_target:
-            physical_spent = self._calculate_cost_and_buy("physical", self.household_step_income_posttax * 0.5)
-            service_spent = self._calculate_cost_and_buy("service", self.household_step_income_posttax * 0.5)
-        else:
-            physical_spent = self._calculate_cost_and_buy("physical", physical_target)
-            service_spent = self._calculate_cost_and_buy("service", service_target)
+        # Households attempt to spend up to their necessity target using all available funds
+        attemptable_necessity_budget = min(total_necessity_target, available_funds)
 
+        physical_spent = 0
+        service_spent = 0
+
+        # Target for physical goods is roughly half of what they can attempt to spend.
+        # Ensure it's not negative if attemptable_necessity_budget is very low.
+        physical_target_for_attempt = max(0.0, attemptable_necessity_budget * 0.5)
         
-        # Total necessity spending
+        if physical_target_for_attempt > 0.01: # Only attempt if target is meaningful
+            physical_spent = self._calculate_cost_and_buy("physical", physical_target_for_attempt)
+
+        # Target for service goods is whatever is left of their attemptable budget
+        # after physical spending. Ensure it's not negative.
+        service_target_for_attempt = max(0.0, attemptable_necessity_budget - physical_spent)
+        
+        if service_target_for_attempt > 0.01: # Only attempt if target is meaningful
+            service_spent = self._calculate_cost_and_buy("service", service_target_for_attempt)
+        
         total_necessity_spent = physical_spent + service_spent
         
         # ---------- LUXURY SPENDING ----------
-        # Calculate remaining budget after necessity spending (can be negative)
-        step_income_remaining = self.household_step_income_posttax - total_necessity_spent
+        # Calculate remaining funds after necessity spending
+        remaining_funds = available_funds - total_necessity_spent
         
-        luxury_budget = step_income_remaining + self.total_household_savings
         # Initialize luxury spending amount
         luxury_spent = 0.0
         
-        # Determine luxury spending based on income bracket
+        # Determine luxury spending based on wealth bracket
         if self.wealth_bracket == "low":
             # Low income households don't buy luxury items
             pass
-        elif self.wealth_bracket == "middle" and luxury_budget > 0:
+        elif self.wealth_bracket == "middle" and remaining_funds > 0:
             # Middle income: spend 50-100% of remaining budget on luxuries
-            luxury_spent = self._spend_on_luxuries(luxury_budget, (0.5, 1.0)) #önce böyle dene sonra değiştir
-        elif self.wealth_bracket == "high" and luxury_budget > 0:
+            luxury_spent = self._spend_on_luxuries(remaining_funds, (0.5, 1.0))
+        elif self.wealth_bracket == "high" and remaining_funds > 0:
             # High income: spend 80-100% of remaining budget on luxuries
-            luxury_spent = self._spend_on_luxuries(luxury_budget, (0.8, 1.0))
+            luxury_spent = self._spend_on_luxuries(remaining_funds, (0.8, 1.0))
         
         # ---------- UPDATE FINANCIAL METRICS ----------
         # Total expenses = necessities + luxuries
-        remaining_budget = luxury_budget - luxury_spent
         self.household_step_expense = total_necessity_spent + luxury_spent
+        
+        # Update savings: available funds minus all spending
+        self.total_household_savings = available_funds - self.household_step_expense
 
-        # Savings can be negative if spending exceeds income, which creates debt
-        self.total_household_savings = remaining_budget
-
-        # Monitor debt levels
+        # Monitor debt levels (should not happen now with this logic, but kept for safety)
         if self.total_household_savings < 0:
             self.debt_level = abs(self.total_household_savings)
         else:
@@ -362,8 +364,17 @@ class HouseholdAgent(mesa.Agent):
         #   print(f"[DEBUG] Household {self.unique_id} - Total household savings: {self.total_household_savings}, Debt level: {self.debt_level}")
 
         # Calculate necessity fulfillment percentage
-        necessity_fulfillment = min(1.0, total_necessity_spent / total_necessity_target) if total_necessity_target > 0 else 1.0
+        necessity_fulfillment = min(1.0, total_necessity_spent / (total_necessity_target - 1000)) if total_necessity_target > 0 else 1.0
         
+        # Increment model counter if necessity goal not met
+        if total_necessity_target > 0 and necessity_fulfillment < 1.0:
+            # The Model class should initialize 'unmet_necessity_households_count' to 0 at the start of each model step,
+            # and print its final value at the end of the model step.
+            self.model.unmet_necessity_households_count += 1
+
+        if total_necessity_target > 0.01 and necessity_fulfillment < 0.999: # using 0.999 to account for potential small float inaccuracies
+            print(f"[INFO] Household {self.unique_id} (Income: {self.income_bracket}, Wealth: {self.wealth_bracket}) did NOT meet necessity target. Target: {total_necessity_target:.2f}, Spent: {total_necessity_spent:.2f}, Shortfall: {total_necessity_target - total_necessity_spent:.2f}")
+            
         # Set base health level based on wealth bracket
         if self.wealth_bracket == "low":
             base_health = 35

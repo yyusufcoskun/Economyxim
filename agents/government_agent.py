@@ -3,22 +3,22 @@ import numpy as np
 import pandas as pd
 from .person_agent import PersonAgent
 from .household_agent import HouseholdAgent
+from .firm_agent import FirmAgent
 
 
 class GovernmentAgent(mesa.Agent):
-    def __init__(self, model, inflation_rate=39.05, unemployment_rate=8.4, interest_rate=42.5):
+    def __init__(self, model):
         super().__init__(model)
 
-        # TODO I will model inflation after I do firm, because inflation occurs when aggregate demand exceeds aggregate supply. Then I can calculate the average price increase from firms to calculate inflation.
 
         self.reserves = 1000000
         self.previous_reserves = self.reserves  
-        self.inflation_rate = inflation_rate
-        self.unemployment_rate = unemployment_rate
+        self.inflation_rate = None
+        self.unemployment_rate = None
         self.GDP = 0
         self.step_tax_revenue = 0
         self.step_public_spending = 0 
-        self.interest_rate = interest_rate
+        self.gini_coefficient = 0
         
         # Define tax brackets
         self.tax_rates = {
@@ -29,6 +29,72 @@ class GovernmentAgent(mesa.Agent):
         self.corporate_tax_rate = 0.22
         self.step_tax_revenue = 0
         self.step_corporate_tax_revenue = 0
+
+    def _calculate_inflation_rate(self):
+        """
+        Calculate the average inflation rate based on price changes of all firms over a 2-step period,
+        weighted by firm type (70% for necessity, 30% for luxury).
+        Inflation for each firm is (current_price - price_two_steps_ago) / price_two_steps_ago.
+        Overall inflation is the weighted average of individual firm inflations.
+        During an initial burn-in period, inflation is reported as a fixed value (e.g., 3.0).
+        """
+        BURN_IN_PERIOD = 5  # Number of initial steps to report fixed inflation
+        NECESSITY_WEIGHT = 0.80
+        LUXURY_WEIGHT = 0.20
+
+        if self.model.current_step < BURN_IN_PERIOD:
+            self.inflation_rate = 5.0 
+            return
+
+        necessity_price_changes = []
+        luxury_price_changes = []
+        
+        firm_agents = [agent for agent in self.model.agents if isinstance(agent, FirmAgent)]
+
+        if not firm_agents:
+            self.inflation_rate = 0.0
+            return
+
+        for agent in firm_agents:
+            if hasattr(agent, 'price_two_steps_ago') and \
+               agent.price_two_steps_ago is not None and \
+               agent.price_two_steps_ago > 0 and \
+               agent.product_price is not None and \
+               hasattr(agent, 'firm_type'):
+                
+                price_change = (agent.product_price - agent.price_two_steps_ago) / agent.price_two_steps_ago
+                
+                if agent.firm_type == "necessity":
+                    necessity_price_changes.append(price_change)
+                elif agent.firm_type == "luxury":
+                    luxury_price_changes.append(price_change)
+        
+        avg_necessity_inflation = 0.0
+        if necessity_price_changes:
+            avg_necessity_inflation = np.mean(necessity_price_changes)
+
+        avg_luxury_inflation = 0.0
+        if luxury_price_changes:
+            avg_luxury_inflation = np.mean(luxury_price_changes)
+
+        # If one category has firms but the other doesn't, we should still calculate inflation.
+        # If a category has no firms, its contribution to weighted inflation is 0.
+        # If both have no firms (already handled by `if not firm_agents`), inflation is 0.
+
+        if not necessity_price_changes and not luxury_price_changes:
+             # This case implies firms exist but none are 'necessity' or 'luxury' type, 
+             # or they don't have valid price histories.
+            self.inflation_rate = 0.0
+        elif not necessity_price_changes: # Only luxury firms with price changes
+            self.inflation_rate = avg_luxury_inflation * 100 # Effectively 100% weight to luxury if no necessity
+        elif not luxury_price_changes: # Only necessity firms with price changes
+            self.inflation_rate = avg_necessity_inflation * 100 # Effectively 100% weight to necessity if no luxury
+        else: # Both categories have firms with price changes
+            self.inflation_rate = (avg_necessity_inflation * NECESSITY_WEIGHT + 
+                                   avg_luxury_inflation * LUXURY_WEIGHT) * 100
+        
+        # print(f"[INFLATION DEBUG] Step: {self.model.current_step}, Nec Changes: {len(necessity_price_changes)}, Lux Changes: {len(luxury_price_changes)}")
+        # print(f"[INFLATION DEBUG] Avg Nec: {avg_necessity_inflation:.4f}, Avg Lux: {avg_luxury_inflation:.4f}, Weighted Infl: {self.inflation_rate:.2f}%")
 
     def _collect_taxes(self):
         """
@@ -83,7 +149,7 @@ class GovernmentAgent(mesa.Agent):
         person_agents = [p for p in self.model.agents if isinstance(p, PersonAgent)]
         unemployed_persons = [p for p in person_agents if p.employer is None and p.job_seeking]
         
-        payment_per_person = 10000
+        payment_per_person = 10000 # REVERT to hardcoded value
         
         if unemployed_persons:
             for person in unemployed_persons:
@@ -101,7 +167,8 @@ class GovernmentAgent(mesa.Agent):
         total_low_income_transfers = 0
         households = [h for h in self.model.agents if isinstance(h, HouseholdAgent)]
         
-        necessity_spend_per_person = 57750
+        necessity_spend_per_person = 57750 # REVERT to hardcoded value
+        # transfer_top_up = self.current_low_income_transfer_top_up # This was part of adjustment, user reverted the usage already
 
         for household in households:
             total_necessity_target = necessity_spend_per_person * household.num_people
@@ -110,7 +177,7 @@ class GovernmentAgent(mesa.Agent):
 
             if available_funds < total_necessity_target:
                 deficit = total_necessity_target - available_funds
-                transfer_amount = deficit + 5000
+                transfer_amount = deficit + 5000 # User already manually set this to 5000
                 
                 household.total_household_savings += transfer_amount
                 total_low_income_transfers += transfer_amount
@@ -231,9 +298,27 @@ class GovernmentAgent(mesa.Agent):
         yearly_gdp = calculated_gdp * 4
         """
 
+
+    def calculate_gini_coefficient(self):
+        """
+        Calculate the Gini coefficient for person income (wage).
+        Returns the Gini coefficient (float between 0 and 1).
+        """
+        persons = [agent for agent in self.model.agents if isinstance(agent, PersonAgent)]
+        incomes = [max(0, p.wage) for p in persons]  # Use max(0, wage) to avoid negative incomes
+        if not incomes or sum(incomes) == 0:
+            return 0.0
+        x = sorted(incomes)
+        n = len(x)
+        B = sum(xi * (n - i) for i, xi in enumerate(x)) / (n * sum(x))
+        return 1 + (1 / n) - 2 * B
+
                     
         
     def step(self):
+        """Execute one step of the government's operations."""
+        self._calculate_inflation_rate() # Calculate inflation first
+        self._collect_taxes()
         # Use previous reserves for current spending
         
         # Calculate and distribute unemployment payments
@@ -268,11 +353,12 @@ class GovernmentAgent(mesa.Agent):
         # Calculate other economic indicators
         self._calculate_unemployment_rate()
         self.GDP = self._calculate_gdp()
+        self.gini_coefficient = self.calculate_gini_coefficient()
         
         # Store current reserves for reference in next step
         self.previous_reserves = self.reserves
         
-   
+    
 
 
 

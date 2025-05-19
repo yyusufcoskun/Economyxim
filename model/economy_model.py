@@ -26,7 +26,7 @@ class EconomicSimulationModel(mesa.Model):
                 "GDP": lambda m: m.government_agent.GDP,
                 "Tax Revenue": lambda m: m.government_agent.step_tax_revenue,
                 "Inflation Rate": lambda m: m.government_agent.inflation_rate,
-                "Interest Rate": lambda m: m.government_agent.interest_rate,
+                "Gini Coefficient": lambda m: m.government_agent.gini_coefficient,
             },
             agent_reporters= {
                  # Firm agent fields
@@ -205,6 +205,8 @@ class EconomicSimulationModel(mesa.Model):
             income_tax_rate=0.15  
         )
 
+        self._assign_persons_to_households()
+
         # Step 6: Cleanup Unassigned PersonAgents
         # print(f"[DEBUG] EconomicSimulationModel: Total agents in scheduler before cleanup: {len(self.agents)}.")
 
@@ -239,31 +241,122 @@ class EconomicSimulationModel(mesa.Model):
             # else:
                 # print(f"[DEBUG] EconomicSimulationModel: Person {person.unique_id} is in a household. Not removing from simulation.")
         
-        #print(f"[DEBUG] EconomicSimulationModel: Finished cleanup. Iterated {len(persons_to_remove)} from available_persons initially.")
-        #print(f"[DEBUG] EconomicSimulationModel: Removed {removed_count} persons from available_persons list based on household status.")
-        #print(f"[DEBUG] EconomicSimulationModel: Attempted to remove {actually_removed_from_schedule_count} persons from schedule.")
-        #print(f"[DEBUG] EconomicSimulationModel: {len(self.available_persons)} persons remaining in available_persons list (should be 0).")
-        #print(f"[DEBUG] EconomicSimulationModel: Total agents in scheduler after cleanup: {len(self.agents)}.") # Use self.schedule.agents for scheduler count
+        print(f"[DEBUG] EconomicSimulationModel: Finished cleanup. Iterated {len(persons_to_remove)} from available_persons initially.")
+        print(f"[DEBUG] EconomicSimulationModel: Removed {removed_count} persons from available_persons list based on household status.")
+        print(f"[DEBUG] EconomicSimulationModel: Attempted to remove {actually_removed_from_schedule_count} persons from schedule.")
+        print(f"[DEBUG] EconomicSimulationModel: {len(self.available_persons)} persons remaining in available_persons list (should be 0).")
+        print(f"[DEBUG] EconomicSimulationModel: Total agents in scheduler after cleanup: {len(self.agents)}.") # Use self.schedule.agents for scheduler count
 
 
+    def _assign_persons_to_households(self):
+        """
+        Assigns persons to households with a strategy to ensure employed persons are
+        housed and to promote heterogeneity within households.
+        """
+        if not hasattr(self, 'available_persons'):
+            print("[ERROR] _assign_persons_to_households: self.available_persons not found.")
+            return
+
+        employed_to_place = [p for p in self.available_persons if p.employer is not None and p.household is None]
+        unemployed_to_place = [p for p in self.available_persons if p.employer is None and p.household is None]
+
+        random.shuffle(employed_to_place)
+        random.shuffle(unemployed_to_place)
+
+        all_households = [h for h in self.agents if isinstance(h, HouseholdAgent)]
+        random.shuffle(all_households)
+
+        print(f"[INFO] Assigning persons: Initial - {len(employed_to_place)} employed, {len(unemployed_to_place)} unemployed. {len(all_households)} households.")
+
+        # Iteratively distribute employed persons, one per household per pass
+        # print("[INFO] Distributing employed persons...")
+        placed_in_a_pass = True # Flag to continue passes if someone was placed
+        while employed_to_place and placed_in_a_pass:
+            placed_in_this_pass = False
+            # Iterate over a copy of all_households in case its order needs to be stable for a pass, or shuffled each pass
+            # For fairness, shuffling each pass might be better if some households fill up.
+            random.shuffle(all_households) 
+            for hh in all_households:
+                if not employed_to_place: # All employed persons have been placed
+                    break
+                if hh.current_population < hh.num_people:
+                    person = employed_to_place.pop(0)
+                    hh.members.append(person)
+                    person.household = hh
+                    hh.current_population += 1
+                    if person in self.available_persons: # Should always be true as employed_to_place is from available_persons
+                        self.available_persons.remove(person)
+                    placed_in_this_pass = True
+                    # print(f"[DEBUG] Assigned Employed {person.unique_id} to HH {hh.unique_id} (Pop: {hh.current_population}/{hh.num_people})")
+            
+            placed_in_a_pass = placed_in_this_pass # Continue if at least one person was placed in the full pass
+
+        if employed_to_place: # Should only happen if no households have space left
+            for person in employed_to_place:
+                 print(f"[ERROR] EconomicSimulationModel: Could not place employed Person {person.unique_id} (Employer: {person.employer.unique_id if person.employer else 'None'}) in any household due to lack of overall capacity. This person may be removed if unhoused.")
+                 # These persons remain in employed_to_place (and thus were in available_persons and not removed)
+                 # and their person.household is None. The cleanup step will handle them.
+
+        # print(f"[INFO] Distributing unemployed persons... {len(unemployed_to_place)} remaining.")
+        # Distribute unemployed persons into remaining spots
+        random.shuffle(all_households) # Shuffle again before distributing unemployed
+        for hh in all_households:
+            while hh.current_population < hh.num_people and unemployed_to_place:
+                person = unemployed_to_place.pop(0)
+                hh.members.append(person)
+                person.household = hh
+                hh.current_population += 1
+                if person in self.available_persons: # Should always be true
+                    self.available_persons.remove(person)
+                # print(f"[DEBUG] Assigned Unemployed {person.unique_id} to HH {hh.unique_id} (Pop: {hh.current_population}/{hh.num_people})")
+
+        # Final step: update employment counts for all households
+        for hh_agent in all_households:
+            if hasattr(hh_agent, '_update_employment_counts'):
+                hh_agent._update_employment_counts()
+            # print(f"[DEBUG] HH {hh_agent.unique_id}: Pop {hh_agent.current_population}/{hh_agent.num_people}. Employed: {hh_agent.num_working_people}")
+        
+        print(f"[INFO] Person assignment complete. {len(self.available_persons)} persons remain unassigned (these will be cleaned up if household is None).")
         
     def step(self):
-        # Collect data
-        self.datacollector.collect(self)
+        # Initialize counter for unmet necessity households at the start of each step
+        self.unmet_necessity_households_count = 0
         
-        # Force the government agent to step first to set tax rates
+        # Step 1: Government Agent acts first
         self.government_agent.step()
         
-        # Then run all other agents
-        for agent in self.agents:
-            if agent != self.government_agent:
-                agent.step()
+        # Step 2: Household Agents act (to generate demand for the current step)
+        household_agents = [agent for agent in self.agents if isinstance(agent, HouseholdAgent)]
+        for agent in household_agents:
+            agent.step()
+            
+        # Step 3: Firm Agents act (processing demand from Gov & Households from current step)
+        firm_agents = [agent for agent in self.agents if isinstance(agent, FirmAgent)]
+        for agent in firm_agents:
+            agent.step()
 
-        # Find the highest capital value among all firms
+        # Step 4: Intermediary Firm Agents act (processing demand from Firms from current step)
+        intermediary_firm_agents = [agent for agent in self.agents if isinstance(agent, IntermediaryFirmAgent)]
+        for agent in intermediary_firm_agents:
+            agent.step()
+
+        # Step 5: Person Agents act (skill updates, job seeking logic)
+        person_agents = [agent for agent in self.agents if isinstance(agent, PersonAgent)]
+        for agent in person_agents:
+            agent.step()
+            
+        # Step 6: Collect data after all agents have completed their actions for the current step
+        self.datacollector.collect(self)
+        
+        # Find the highest capital value among all firms (can be part of datacollection if needed often)
         highest_capital = 0
-        for agent in self.agents:
-            if hasattr(agent, 'capital') and agent.capital > highest_capital:
+        for agent in self.agents: # Iterate through all agents, not just firms, if capital can exist elsewhere
+            if hasattr(agent, 'capital') and agent.capital is not None and agent.capital > highest_capital:
                 highest_capital = agent.capital
         
+        # Step 7: Increment step counter
         self.current_step += 1
+        
+        # Optional: Print step summary information
+        print(f"[INFO] Step {self.current_step}: Households not meeting necessity goal: {self.unmet_necessity_households_count}")
         print(f"[DEBUG] Step {self.current_step} completed | Highest Capital: {highest_capital:.2f}")
