@@ -36,9 +36,12 @@ class FirmAgent(mesa.Agent):
         self.last_step_profit = None  # Profit from the previous step
         self.units_sold_this_step = 0 # ADDED
         self.total_requested_this_step = 0 # ADDED
+        self.profit_history = [] # ADDED for new hiring logic
+        self.profit_history_length = 3 # ADDED for new hiring logic
+        self.tax_paid_this_step = 0.0 # ADDED: To store tax paid in a step
         
         # Inventory and demand tracking
-        self.inventory = self.production_capacity  # Initialize with some inventory
+        self.inventory = self.production_capacity*5  # Initialize with some inventory
         #self.demand_received = 0  # Demand received from households
         self.unmet_demand = 0
         self.demand_history = []
@@ -299,105 +302,122 @@ class FirmAgent(mesa.Agent):
               #f"old price: {old_price:.2f}, new price: {self.product_price:.2f}")
 
     def adjust_employees(self):
-        """Adjust number of employees based on revenue per employee."""
+        """Adjust number of employees based on profit trends."""
 
-        # TODO make this last 2 steps instead of just last step
-        if self.last_step_revenue_per_emp is None:
+        if len(self.profit_history) < self.profit_history_length:
+            # Not enough data to make a decision based on 3-step trends
+            # print(f"[DEBUG] Firm {self.unique_id} ({self.firm_type}/{self.firm_area}): Not enough profit history ({len(self.profit_history)} steps) to adjust employees. Current profit: {self.profit:.2f}")
             return
 
-        # Print debug values to see why firing isn't happening
-        #print(f"[DEBUG] Firm {self.unique_id}: Last step rev/emp: {self.last_step_revenue_per_emp:.2f}, Current rev/emp: {self.revenue_per_employee:.2f}")
-        #print(f"[DEBUG] Firm {self.unique_id}: Should fire? {self.last_step_revenue_per_emp > self.revenue_per_employee}")
+        # p0 is current profit, p1 is one step ago, p2 is two steps ago
+        p0 = self.profit_history[-1]
+        p1 = self.profit_history[-2]
+        p2 = self.profit_history[-3]
 
-        if self.last_step_revenue_per_emp > self.revenue_per_employee:
-            # FIRING: fires least productive employee (hours*skill)
-            #print(f"[DEBUG] Firm {self.unique_id} attempting to fire employee...")
-            self.fire_least_productive()
-            self.num_employees = max(1, self.num_employees - 1)
+        avg_prev_2_steps_profit = (p1 + p2) / 2.0
+        
+        is_stable = False
+        # Handle case where avg_prev_2_steps_profit is zero to avoid division by zero or issues with percentage
+        if avg_prev_2_steps_profit == 0:
+            # If previous average was zero, stable only if current is also zero (within a small tolerance for float issues)
+            is_stable = abs(p0) < 1e-6 # Consider very close to zero as stable with zero
         else:
-            # HIRING
-            self.hire_new_employee()
-            self.num_employees += 1
+            # Stable if current profit is within 5% of the average of the previous two steps' profit
+            is_stable = abs(p0 - avg_prev_2_steps_profit) < (0.05 * abs(avg_prev_2_steps_profit))
 
-    
+        at_a_loss = p0 < 0
+
+        action_taken = "none" # For debugging
+
+        if at_a_loss:
+            # Company is currently losing money
+            if p0 < avg_prev_2_steps_profit and not is_stable: # Losses are getting bigger (p0 is more negative) and not stable
+                # print(f"[DEBUG] Firm {self.unique_id} ({self.firm_type}/{self.firm_area}): At a loss. Losses increasing (P0: {p0:.2f}, AvgP1P2: {avg_prev_2_steps_profit:.2f}). Firing.")
+                if self.fire_least_productive():
+                    action_taken = "fired (losses increasing)"
+            elif is_stable: # Losses are stable
+                # print(f"[DEBUG] Firm {self.unique_id} ({self.firm_type}/{self.firm_area}): At a loss. Losses stable (P0: {p0:.2f}, AvgP1P2: {avg_prev_2_steps_profit:.2f}). Firing.")
+                if self.fire_least_productive():
+                     action_taken = "fired (losses stable)"
+            else: # Losses are getting smaller (p0 is less negative or positive, but started < 0, and not stable)
+                # print(f"[DEBUG] Firm {self.unique_id} ({self.firm_type}/{self.firm_area}): At a loss, but losses decreasing or turned to profit (P0: {p0:.2f}, AvgP1P2: {avg_prev_2_steps_profit:.2f}). No change.")
+                action_taken = "monitoring (losses decreasing)"
+                pass # Do nothing, monitor situation
+        else: # Profiting (p0 >= 0)
+            if p0 > avg_prev_2_steps_profit and not is_stable: # Profits are getting larger and not stable
+                # print(f"[DEBUG] Firm {self.unique_id} ({self.firm_type}/{self.firm_area}): Profiting. Profits increasing (P0: {p0:.2f}, AvgP1P2: {avg_prev_2_steps_profit:.2f}). Hiring.")
+                if self.hire_new_employee():
+                    action_taken = "hired (profits increasing)"
+            elif is_stable: # Profits are stable
+                # print(f"[DEBUG] Firm {self.unique_id} ({self.firm_type}/{self.firm_area}): Profiting. Profits stable (P0: {p0:.2f}, AvgP1P2: {avg_prev_2_steps_profit:.2f}). Hiring.")
+                if self.hire_new_employee():
+                    action_taken = "hired (profits stable)"
+            else: # Profits are falling (p0 < avg_prev_2_steps_profit, but p0 still >= 0, and not stable)
+                # print(f"[DEBUG] Firm {self.unique_id} ({self.firm_type}/{self.firm_area}): Profiting. Profits falling (P0: {p0:.2f}, AvgP1P2: {avg_prev_2_steps_profit:.2f}). Firing.")
+                if self.fire_least_productive():
+                    action_taken = "fired (profits falling)"
+        
+        # if action_taken != "none" and action_taken != "monitoring (losses decreasing)":
+        #     print(f"[INFO] Firm {self.unique_id} ({self.firm_type}/{self.firm_area}) - Employee Adjustment: {action_taken}. Profit P0: {p0:.2f}, Avg(P1,P2): {avg_prev_2_steps_profit:.2f}, Stable: {is_stable}, Num Employees: {self.num_employees}")
+        # elif action_taken == "monitoring (losses decreasing)":
+        #     print(f"[INFO] Firm {self.unique_id} ({self.firm_type}/{self.firm_area}) - Employee Adjustment: {action_taken}. Profit P0: {p0:.2f}, Avg(P1,P2): {avg_prev_2_steps_profit:.2f}, Num Employees: {self.num_employees}")
+
 
     def fire_least_productive(self):
-        """Fire the employee with lowest productivity (skill * work_hours / wage)."""
-        # Get all person agents that work for this firm
-        employees = [agent for agent in self.model.agents 
-                    if hasattr(agent, 'employer') and agent.employer == self]
+        """Fire the employee with lowest productivity (skill * work_hours / wage).
+        Updates self.employees and self.num_employees. Returns True if an employee was fired, False otherwise."""
+        if not self.employees or self.num_employees <= 1: # Cannot fire if no employees or only one left (assuming min 1 employee)
+            # print(f"[DEBUG] Firm {self.unique_id}: Cannot fire. Employees: {self.num_employees}")
+            return False
         
-        if not employees:
-            #print(f"[DEBUG] Firm {self.unique_id}: No employees to fire.")
-            return  # No employees to fire
-        
-       # print(f"[DEBUG] Firm {self.unique_id}: Found {len(employees)} employees")
-        
-        # Calculate productivity for each employee
+        # Calculate productivity for each employee in self.employees list
         employee_productivity = []
-        
-        for person in employees:
-            # All employees in this firm will have the same skill type matching the firm type
-            # So we can directly use their skill_level
-            
-            # Get skill level   
+        for person in self.employees:
             skill_level = person.skill_level
-            labor = person.labor
-            
-            # Calculate productivity score
-            productivity = (skill_level * labor) / (person.wage + 1e-6)
+            labor = person.labor # Assuming 'labor' is a good proxy for work_hours or contribution
+            productivity = (skill_level * labor) / (person.wage + 1e-6) # Add epsilon to avoid division by zero
             employee_productivity.append((productivity, person))
         
-        # Sort by productivity (lowest first), using only the first element of each tuple
-        employee_productivity.sort(key=lambda x: x[0])
+        if not employee_productivity:
+            # print(f"[DEBUG] Firm {self.unique_id}: No employee productivity list generated from self.employees.")
+            return False
+
+        employee_productivity.sort(key=lambda x: x[0]) # Sort by productivity (lowest first)
         
-        # Fire the least productive employee
-        if employee_productivity:
-            _, person_to_fire = employee_productivity[0]
-            
-            # Get their job level for reporting
-            job_level = person_to_fire.job_level if hasattr(person_to_fire, 'job_level') else "unknown"
-            
-            # Update person's employment status
-            person_to_fire.employer = None
-            person_to_fire.wage = 0
-            person_to_fire.job_seeking = True
-            
-            #print(f"Firm {self.unique_id} fired Person {person_to_fire.unique_id} with job level {job_level} and productivity {employee_productivity[0][0]:.2f}")
-        else:
-            #print(f"[DEBUG] Firm {self.unique_id}: No employee productivity list generated.")
-            pass
+        productivity_score, person_to_fire = employee_productivity[0]
+        
+        # Update person's employment status
+        person_to_fire.employer = None
+        person_to_fire.wage = 0
+        person_to_fire.job_seeking = True
+        
+        # Remove from firm's list of employees and update count
+        self.employees.remove(person_to_fire)
+        self.num_employees -= 1
+        
+        job_level = person_to_fire.job_level if hasattr(person_to_fire, 'job_level') else "unknown"
+        # print(f"[INFO] Firm {self.unique_id} fired Person {person_to_fire.unique_id} (Job: {job_level}, Prod: {productivity_score:.2f}). Remaining employees: {self.num_employees}")
+        return True
 
     
 
     def hire_new_employee(self):
-        """Hire a new employee with appropriate skills for this firm area."""
+        """Hire a new employee with appropriate skills for this firm area.
+        Updates self.employees and self.num_employees. Returns True if an employee was hired, False otherwise."""
         
-        # Get current employees and their levels
-        employees = [agent for agent in self.model.agents 
-                    if hasattr(agent, 'employer') and agent.employer == self]
-        
-        current_mix = {
-            "senior": 0,
-            "mid": 0, 
-            "entry": 0
-        }
+        # Get current employees and their levels from self.employees
+        current_mix = {"senior": 0, "mid": 0, "entry": 0}
         
         # Keep track of previously employed people to avoid rehiring them
         if not hasattr(self, 'previous_employees'):
             self.previous_employees = set()
             
-        # Get thresholds for this firm area
-        # Example: if self.firm_area is "tech" and job_level is "senior":
-        # firm_levels = min_skill_levels["tech"] = {"senior": 0.8, "mid": 0.6, "entry": 0.4}
         firm_levels = self.min_skill_levels_config.get(self.firm_area, self.min_skill_levels_config["physical"])
         
-        # Count current employees at each level using area-specific thresholds
-        for emp in employees:
+        for emp in self.employees: # Iterate over self.employees
             if hasattr(emp, 'job_level') and emp.job_level is not None:
                 current_mix[emp.job_level] += 1
             else:
-                # Categorize based on skill thresholds for this area
                 if emp.skill_level >= firm_levels["senior"]:
                     current_mix["senior"] += 1
                 elif emp.skill_level >= firm_levels["mid"]:
@@ -405,81 +425,66 @@ class FirmAgent(mesa.Agent):
                 else:
                     current_mix["entry"] += 1
                 
-        # Calculate percentages
-        total = len(employees) + 1  # Add 1 for new hire
+        total_current_employees = self.num_employees # Use self.num_employees
         target_mix = self.skill_mix_config.get(self.firm_area, self.skill_mix_config["physical"])
         
-        # Determine which level needs hiring to get closer to target mix
         differences = {}
-        # Calculate the difference between target and current percentage for each level
         for level in ["senior", "mid", "entry"]:
-            # Get current percentage of employees at this level (or 0 if no employees)
-            current_pct = current_mix[level] / total if total > 0 else 0
-            # Get target percentage for this level from skill_mix
+            current_pct = current_mix[level] / (total_current_employees + 1) if (total_current_employees + 1) > 0 else 0 # Consider new hire
             target_pct = target_mix[level]
-            # Store how far we are from target (positive means we need more at this level)
             differences[level] = target_pct - current_pct
             
-        # Choose the level with the highest difference (most needed)
         job_level = max(differences, key=differences.get)
-        
-        # Get minimum skill level for this level from firm area
         min_skill_level = firm_levels[job_level]
-        
-        # Get the matching skill type for this firm area
         matching_skill_type = self.skill_type_matching_config.get(self.firm_area, "physical")
         
-        # Find candidates with matching skill type
-        matching_candidates = [agent for agent in self.model.agents 
-                      if hasattr(agent, 'job_seeking') and agent.job_seeking 
-                      and agent.skill_level >= min_skill_level
-                      and hasattr(agent, 'skill_type') and agent.skill_type == matching_skill_type
-                      and agent.unique_id not in self.previous_employees]
+        # Find candidates from self.model.available_persons or a similar global list
+        # Assuming self.model.available_persons exists and is the source of truth for unemployed persons
+        if not hasattr(self.model, 'available_persons'):
+            # print(f"[WARNING] Firm {self.unique_id}: model.available_persons not found. Cannot hire.")
+            return False
+
+        available_job_seekers = [p for p in self.model.agents if hasattr(p, 'job_seeking') and p.job_seeking and p.employer is None]
+
+        matching_candidates = [p for p in available_job_seekers
+                               if p.skill_level >= min_skill_level and
+                               p.skill_type == matching_skill_type and
+                               p.unique_id not in self.previous_employees]
         
-        # If no matching candidates, look for any job-seeking agent with sufficient skill
-        candidates = matching_candidates
+        candidates_to_consider = matching_candidates
         if not matching_candidates:
-            candidates = [agent for agent in self.model.agents 
-                        if hasattr(agent, 'job_seeking') and agent.job_seeking
-                        and agent.skill_level >= min_skill_level - 10
-                        and agent.unique_id not in self.previous_employees]
+            candidates_to_consider = [p for p in available_job_seekers
+                                      if p.skill_level >= min_skill_level - 10 and # Relaxed skill level
+                                      p.unique_id not in self.previous_employees]
             
-        # Hire one of the most qualified candidates
-        if candidates:
-            # Sort by skill level
-            candidates.sort(key=lambda p: p.skill_level, reverse=True)
+        if not candidates_to_consider:
+            # print(f"[DEBUG] Firm {self.unique_id}: No suitable candidates found to hire for {job_level} in {self.firm_area}.")
+            return False
+
+        candidates_to_consider.sort(key=lambda p: p.skill_level, reverse=True)
+        top_candidate_count = max(1, len(candidates_to_consider) // 2)
+        person_to_hire = random.choice(candidates_to_consider[:top_candidate_count])
             
-            # Consider the top half of candidates (with a minimum of at least one person)
-            top_candidate_count = max(1, len(candidates) // 2)
-            top_candidates = candidates[:top_candidate_count]
+        base_wage = self.entry_wage * self.wage_multipliers[job_level]
+        skill_bonus = person_to_hire.skill_level * 0.03 * base_wage # Example bonus
+        offered_wage = base_wage + skill_bonus
             
-            # Randomly select from top candidates
-            person_to_hire = random.choice(top_candidates)
+        person_to_hire.employer = self
+        person_to_hire.wage = offered_wage
+        person_to_hire.job_seeking = False
+        person_to_hire.job_level = job_level
+        
+        self.employees.append(person_to_hire) # Add to firm's list
+        self.num_employees += 1 # Increment count
+        
+        self.previous_employees.add(person_to_hire.unique_id)
+        if len(self.previous_employees) > 100: # Keep the set from growing too large
+            for _ in range(10):
+                if self.previous_employees: # Ensure it's not empty before popping
+                    self.previous_employees.pop() # .pop() on a set removes an arbitrary element
             
-            # Determine wage based on skill level and job level
-            base_wage = self.entry_wage * self.wage_multipliers[job_level]
-            skill_bonus = person_to_hire.skill_level * 0.03 * base_wage
-            offered_wage = base_wage + skill_bonus
-            
-            # Update person's employment status
-            person_to_hire.employer = self
-            person_to_hire.wage = offered_wage
-            person_to_hire.job_seeking = False
-            
-            # Add to previous employees set to avoid rehiring
-            self.previous_employees.add(person_to_hire.unique_id)
-            
-            # Keep the set from growing too large
-            if len(self.previous_employees) > 100:
-                # Remove oldest entries
-                for _ in range(10):
-                    if self.previous_employees:
-                        self.previous_employees.pop()
-            
-            # Set the job level
-            person_to_hire.job_level = job_level
-            
-            #print(f"Firm {self.unique_id} hired Person {person_to_hire.unique_id} as {job_level} level with skill {person_to_hire.skill_level:.2f}")
+        # print(f"[INFO] Firm {self.unique_id} hired Person {person_to_hire.unique_id} as {job_level} (Skill: {person_to_hire.skill_level:.2f}). Total employees: {self.num_employees}")
+        return True
 
 
     def calculate_total_wage_cost(self):
@@ -544,14 +549,30 @@ class FirmAgent(mesa.Agent):
         self.revenue = self.product_price * sold_units
         # Note: self.inventory was already reduced in fulfill_demand_request
 
-        # Profit
-        self.profit = self.revenue - self.costs
+        # Calculate pre-tax profit for the current step
+        pre_tax_profit = self.revenue - self.costs
+        self.tax_paid_this_step = 0.0 # Reset for the current step's calculation
 
-        if self.profit > 0:
-            self.profit = self.profit * (1 - self.model.government_agent.corporate_tax_rate)
-            self.capital += self.profit
+        if pre_tax_profit > 0:
+            # Get amount of revenue from government purchases THIS step
+            # GovernmentAgent populates this dict in its step, which runs before FirmAgent's step
+            amount_from_gov = self.model.government_agent.government_purchases_from_firms_step.get(self.unique_id, 0)
+            
+            # Determine the actual taxable profit by excluding direct government revenue
+            true_taxable_profit = pre_tax_profit - amount_from_gov
+            
+            if true_taxable_profit > 0:
+                tax_due_this_step = true_taxable_profit * self.model.government_agent.corporate_tax_rate
+                self.tax_paid_this_step = tax_due_this_step
+                self.profit = pre_tax_profit - tax_due_this_step # Net profit after specific tax
+            else:
+                # Profit was solely from (or offset by) government purchases, or became a loss after adjustment
+                self.profit = pre_tax_profit # No corporate tax due on this
         else:
-            self.capital += self.profit
+            # Firm made a loss initially
+            self.profit = pre_tax_profit
+
+        self.capital += self.profit # Add net profit (or loss) to capital
         
         # Calculate unmet demand
         self.unmet_demand = self.total_requested_this_step - self.units_sold_this_step
@@ -588,7 +609,12 @@ class FirmAgent(mesa.Agent):
         self.last_step_revenue_per_emp = self.revenue_per_employee
         
         # Reset step-specific counters
-        self.demand_for_tracking = self.total_requested_this_step
+        self.demand_for_tracking = self.total_requested_this_step # Storing for data collection if needed
         self.units_sold_this_step = 0
         self.total_requested_this_step = 0
+        
+        # Update profit history
+        self.profit_history.append(self.profit)
+        if len(self.profit_history) > self.profit_history_length:
+            self.profit_history.pop(0)
         # self.demand_received = 0 # Old reset, no longer primary accumulator

@@ -12,7 +12,7 @@ class GovernmentAgent(mesa.Agent):
         super().__init__(model)
 
 
-        self.reserves = 1000000
+        self.reserves = 100000000
         self.previous_reserves = self.reserves  
         self.inflation_rate = None
         self.unemployment_rate = None
@@ -20,6 +20,7 @@ class GovernmentAgent(mesa.Agent):
         self.step_tax_revenue = 0
         self.step_public_spending = 0 
         self.gini_coefficient = 0
+        self.government_purchases_from_firms_step = {} # Stores {firm_id: amount_spent_by_gov}
         
         # Define tax brackets
         self.tax_rates = {
@@ -128,14 +129,16 @@ class GovernmentAgent(mesa.Agent):
     
     def _collect_corporate_taxes(self):
         """
-        Collect corporate taxes from firms
+        Collect corporate taxes. Firms have already calculated their tax liability 
+        for their previous operational step, excluding revenue from direct government purchases.
+        This method sums the tax amounts that firms have determined they paid/owe.
         """
-        firms = [agent for agent in self.model.agents if hasattr(agent, 'profit')]
-
-        for firm in firms:
-            if firm.profit > 0:
-                corporate_tax_amount = firm.profit * self.corporate_tax_rate
-                self.step_corporate_tax_revenue += corporate_tax_amount
+        self.step_corporate_tax_revenue = 0
+        firm_agents = [agent for agent in self.model.agents if isinstance(agent, FirmAgent)]
+        for firm in firm_agents:
+            # getattr is used to safely access tax_paid_this_step, defaulting to 0 if not found
+            # This tax_paid_this_step was calculated by the firm in its *previous* step.
+            self.step_corporate_tax_revenue += getattr(firm, 'tax_paid_this_step', 0)
         
         return self.step_corporate_tax_revenue
         
@@ -150,7 +153,7 @@ class GovernmentAgent(mesa.Agent):
         person_agents = [p for p in self.model.agents if isinstance(p, PersonAgent)]
         unemployed_persons = [p for p in person_agents if p.employer is None and p.job_seeking]
         
-        payment_per_person = 10000 # REVERT to hardcoded value
+        payment_per_person = 10000 
         
         if unemployed_persons:
             for person in unemployed_persons:
@@ -168,17 +171,14 @@ class GovernmentAgent(mesa.Agent):
         total_low_income_transfers = 0
         households = [h for h in self.model.agents if isinstance(h, HouseholdAgent)]
         
-        necessity_spend_per_person = 57750 # REVERT to hardcoded value
-        # transfer_top_up = self.current_low_income_transfer_top_up # This was part of adjustment, user reverted the usage already
-
         for household in households:
-            total_necessity_target = necessity_spend_per_person * household.num_people
+            total_necessity_target = household.necessity_spend_per_person * household.num_people
 
             available_funds = household.household_step_income_posttax + household.total_household_savings
 
             if available_funds < total_necessity_target:
                 deficit = total_necessity_target - available_funds
-                transfer_amount = deficit + 5000 # User already manually set this to 5000
+                transfer_amount = deficit + 5000 
                 
                 household.total_household_savings += transfer_amount
                 total_low_income_transfers += transfer_amount
@@ -211,7 +211,7 @@ class GovernmentAgent(mesa.Agent):
                 if hasattr(f, 'firm_type') and f.firm_type == "necessity" 
                 and hasattr(f, 'firm_area') and f.firm_area == category_area
                 and hasattr(f, 'product_price') and f.product_price > 0
-                #and hasattr(f, 'inventory') and f.inventory > 0
+                and hasattr(f, 'inventory') and f.inventory > 0
                 # fulfill_demand_request will check inventory, so initial inventory check here is optional
             ]
             random.shuffle(potential_firms_for_category)
@@ -240,6 +240,9 @@ class GovernmentAgent(mesa.Agent):
                     actual_cost_this_transaction = actually_bought_units * chosen_firm.product_price
                     total_spent_on_necessities += actual_cost_this_transaction
                     remaining_budget_for_this_category -= actual_cost_this_transaction
+                    # Update the tracker for government purchases
+                    self.government_purchases_from_firms_step[chosen_firm.unique_id] = \
+                        self.government_purchases_from_firms_step.get(chosen_firm.unique_id, 0) + actual_cost_this_transaction
                     # print(f"[GOV DEBUG] Bought {actually_bought_units} from {chosen_firm.unique_id}. Cost: {actual_cost_this_transaction:.2f}. Budget left for cat: {remaining_budget_for_this_category:.2f}")
                 # else:
                     # print(f"[GOV DEBUG] Firm {chosen_firm.unique_id} could not fulfill {desired_units} units.")
@@ -327,8 +330,9 @@ class GovernmentAgent(mesa.Agent):
         
     def step(self):
         """Execute one step of the government's operations."""
+        self.government_purchases_from_firms_step = {} # Reset for the current step
         self._calculate_inflation_rate() # Calculate inflation first
-        self._collect_taxes()
+        
         # Use previous reserves for current spending
         
         # Calculate and distribute unemployment payments
@@ -344,7 +348,7 @@ class GovernmentAgent(mesa.Agent):
         self.reserves -= self.step_public_spending
 
         # Calculate government necessity spending from remaining reserves
-        government_necessity_spending_budget = self.reserves * 0.05
+        government_necessity_spending_budget = self.reserves * 0.1
         
         # Execute government spending on necessity goods
         necessity_goods_spent_total = self._execute_government_necessity_spending(government_necessity_spending_budget)

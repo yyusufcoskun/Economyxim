@@ -36,6 +36,7 @@ class HouseholdAgent(mesa.Agent):
         self.total_household_savings = 0
         self.wealth_bracket = None
         self.debt_level = 0
+        self.necessity_spend_per_person = 57750
         # Welfare and employment tracking
         self.health_level = 0
         self.welfare = 0
@@ -274,12 +275,9 @@ class HouseholdAgent(mesa.Agent):
         # Update household income based on members' wages
         employed_members = [member for member in self.members if member.employer is not None]  
         self.household_step_income = sum(member.wage for member in employed_members)
-
-        # Each person requires 19250 in necessity spending a month, split 50/50 between physical and service
-        necessity_spend_per_person = 57750
           
         # Every household must attempt to spend the target amount on necessities
-        total_necessity_target = necessity_spend_per_person * self.num_people
+        total_necessity_target = self.necessity_spend_per_person * self.num_people
 
         # Determine income bracket based on multiples of the necessity threshold
         if self.household_step_income < total_necessity_target:
