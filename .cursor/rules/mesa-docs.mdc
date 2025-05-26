@@ -1,6 +1,0 @@
----
-description: 
-globs: 
-alwaysApply: true
----
-When doing something related to Mesa, which is the building blocks of this project, always refer to [mesa-readthedocs-io-en-latest.txt](mdc:mesa-readthedocs-io-en-latest.txt)
