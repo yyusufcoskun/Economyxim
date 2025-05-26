@@ -33,10 +33,10 @@ class HouseholdAgent(mesa.Agent):
         self.household_step_income_posttax = 0
         self.household_step_expense = 0
         self.household_step_savings = 0
-        self.total_household_savings = 0
         self.wealth_bracket = None
         self.debt_level = 0
         self.necessity_spend_per_person = 57750
+        self.total_household_savings = self.necessity_spend_per_person * self.num_people
         # Welfare and employment tracking
         self.health_level = 0
         self.welfare = 0
@@ -293,7 +293,7 @@ class HouseholdAgent(mesa.Agent):
         # Determine wealth bracket based on total household savings and post tax income
         if self.total_household_savings + self.household_step_income_posttax < total_necessity_target*1.2:
             self.wealth_bracket = "low"
-        elif self.total_household_savings + self.household_step_income_posttax < total_necessity_target*4.5:
+        elif self.total_household_savings + self.household_step_income_posttax < total_necessity_target*4:
             self.wealth_bracket = "middle"
         else:
             self.wealth_bracket = "high"
@@ -339,7 +339,7 @@ class HouseholdAgent(mesa.Agent):
             pass
         elif self.wealth_bracket == "middle" and remaining_funds > 0:
             # Middle income: spend 50-100% of remaining budget on luxuries
-            luxury_spent = self._spend_on_luxuries(remaining_funds, (0.5, 1.0))
+            luxury_spent = self._spend_on_luxuries(remaining_funds, (0.6, 1.0))
         elif self.wealth_bracket == "high" and remaining_funds > 0:
             # High income: spend 80-100% of remaining budget on luxuries
             luxury_spent = self._spend_on_luxuries(remaining_funds, (0.8, 1.0))
@@ -360,7 +360,7 @@ class HouseholdAgent(mesa.Agent):
         #   print(f"[DEBUG] Household {self.unique_id} - Total household savings: {self.total_household_savings}, Debt level: {self.debt_level}")
 
         # Calculate necessity fulfillment percentage
-        necessity_fulfillment = min(1.0, total_necessity_spent / (total_necessity_target - 1000)) if total_necessity_target > 0 else 1.0
+        necessity_fulfillment = min(1.0, total_necessity_spent / (total_necessity_target - 2000)) if total_necessity_target > 0 else 1.0
         
         # Increment model counter if necessity goal not met
         if total_necessity_target > 0 and necessity_fulfillment < 1.0:

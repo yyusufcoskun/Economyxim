@@ -347,11 +347,13 @@ class GovernmentAgent(mesa.Agent):
         # Reduce reserves based on initial spending
         self.reserves -= self.step_public_spending
 
-        # Calculate government necessity spending from remaining reserves
-        government_necessity_spending_budget = self.reserves * 0.1
-        
-        # Execute government spending on necessity goods
-        necessity_goods_spent_total = self._execute_government_necessity_spending(government_necessity_spending_budget)
+        # Calculate government necessity spending from remaining reserves (skip on first step)
+        necessity_goods_spent_total = 0
+        if self.model.current_step > 1:
+            government_necessity_spending_budget = self.reserves * 0.1
+            
+            # Execute government spending on necessity goods
+            necessity_goods_spent_total = self._execute_government_necessity_spending(government_necessity_spending_budget)
         
         # Update reserves and total public spending
         self.reserves -= necessity_goods_spent_total

@@ -197,30 +197,58 @@ class FirmAgent(mesa.Agent):
         return can_fulfill
 
     def adjust_production(self, sold_units):
-        # Handle cases with no capacity or no history first
+        """
+        Adjust production level based on market conditions, preventing the vicious cycle
+        that affects luxury goods by maintaining minimum viable production levels.
+        """
+        # Handle cases with no capacity first
         if self.labor_added_production_capacity <= 0:
             self.production_level = 0.0
             return
-        if not self.demand_history or self.average_demand == 0: # also check average_demand to prevent division by zero or weirdness
-            # If no history or average demand, and we want to produce,
-            # it's hard to apply the logic below. Default to a moderate level or 1.0 if inventory is low.
-            if self.inventory < self.production_capacity * 0.5: # Arbitrary low inventory threshold
-                 self.production_level = 1.0
+            
+        # Calculate key market metrics
+        demand_to_inventory_ratio = self.average_demand / (self.inventory + 1e-6)
+        sell_through_rate = sold_units / (self.produced_units + 1e-6)
+        
+        # Set minimum production levels based on firm type to prevent death spiral
+        if self.firm_type == "luxury":
+            min_production_level = 0.3  # Luxury firms need economies of scale
+        else:
+            min_production_level = 0.2  # Necessity firms can operate lower
+            
+        # If we have no demand history yet, use conservative approach
+        if not self.demand_history or self.average_demand == 0:
+            if self.inventory < self.production_capacity * 0.3:
+                self.production_level = max(0.7, min_production_level)
             else:
-                 self.production_level = 0.5
+                self.production_level = max(0.5, min_production_level)
             return
 
-        # Apply the new logic
-        if self.average_demand > self.inventory:
-            self.production_level = 1.0
-        elif self.inventory < self.average_demand * 1.1:
-            self.production_level = 1.0
-        else:
-            # This block executes if inventory >= average_demand * 1.1 AND average_demand <= inventory
-            self.production_level -= 0.05
-        
-        # Ensure production level stays within bounds [0.0, 1.0]
-        self.production_level = min(max(self.production_level, 0.1), 1.0)
+        # Main production adjustment logic
+        if demand_to_inventory_ratio > 1.5:  # High demand relative to inventory
+            self.production_level = min(1.0, self.production_level + 0.1)
+        elif demand_to_inventory_ratio > 1.0:  # Moderate demand
+            self.production_level = min(1.0, self.production_level + 0.05)
+        elif sell_through_rate > 0.8:  # Good sales performance
+            self.production_level = min(1.0, self.production_level + 0.03)
+        elif sell_through_rate < 0.3 and self.inventory > self.average_demand * 2:
+            # Poor sales AND high inventory - reduce but not below minimum
+            new_level = self.production_level - 0.03
+            self.production_level = max(new_level, min_production_level)
+        elif self.inventory > self.average_demand * 3:
+            # Very high inventory - more aggressive reduction but still respect minimum
+            new_level = self.production_level - 0.05
+            self.production_level = max(new_level, min_production_level)
+            
+        # Special handling for luxury firms in crisis
+        if (self.firm_type == "luxury" and 
+            self.average_demand < self.production_capacity * 0.1 and 
+            self.production_level < 0.5):
+            # Force minimum viable production to maintain cost structure
+            self.production_level = 0.4
+            
+        # Ensure bounds
+        self.production_level = min(max(self.production_level, min_production_level), 1.0)
 
     def adjust_price(self, sold_units, produced_units, cost_per_unit):
         """Adjust price based on market conditions and demand trends."""
@@ -249,57 +277,82 @@ class FirmAgent(mesa.Agent):
 
         market_pressure = 0.0  # -1 to 1 ----- negative means downward price pressure, price drops
 
-        # Adjust market pressure based on inventory levels
-        if inventory_demand_ratio > 2.0:  # inventory is more than 2 times of demand
-            market_pressure -= 0.4  # price wants to drop
-        elif inventory_demand_ratio > 1.5:
-            market_pressure -= 0.2
-        elif inventory_demand_ratio < 0.5:  # demand is twice as much as inventory
-            market_pressure += 0.5  # price wants to rise so that stock lasts
-        elif inventory_demand_ratio < 0.2:  # demand is 5 times as much as inventory
-            market_pressure += 1
+        # Enhanced inventory-based pricing for luxury goods
+        if self.firm_type == "luxury":
+            if inventory_demand_ratio > 3.0:  # Severe oversupply
+                market_pressure -= 0.7
+            elif inventory_demand_ratio > 2.0:
+                market_pressure -= 0.6
+            elif inventory_demand_ratio > 1.5:
+                market_pressure -= 0.5
+            elif inventory_demand_ratio < 0.3:
+                market_pressure += 0.6
+            elif inventory_demand_ratio < 0.5:
+                market_pressure += 0.4
+        else:
+            # Original logic for necessity goods
+            if inventory_demand_ratio > 2.0:
+                market_pressure -= 0.4
+            elif inventory_demand_ratio > 1.5:
+                market_pressure -= 0.2
+            elif inventory_demand_ratio < 0.5:
+                market_pressure += 0.5
+            elif inventory_demand_ratio < 0.2:
+                market_pressure += 1
 
-        # Adjust market pressure based on sales performance
-        if sell_through_rate < 0.4:  # poor sales
-            market_pressure -= 0.6
+        # Enhanced sales performance adjustments
+        if sell_through_rate < 0.2:  # Very poor sales
+            market_pressure -= 0.5
+        elif sell_through_rate < 0.4:  # Poor sales
+            market_pressure -= 0.3
         elif sell_through_rate > 0.9:
-            market_pressure += 0.3
+            market_pressure += 0.4
 
-        # Adjust market pressure based on demand trends
-        if short_term_trend < -0.2:  # Sharp recent decline
-            market_pressure -= 0.15
+        # Demand trend adjustments
+        if short_term_trend < -0.3:  # Sharp recent decline
+            market_pressure -= 0.2
+        elif short_term_trend < -0.2:
+            market_pressure -= 0.1
         elif short_term_trend > 0.2:  # Sharp recent increase
             market_pressure += 0.15
 
-        if long_term_trend < -0.1:  # Sustained decline
+        if long_term_trend < -0.2:  # Sustained significant decline
             market_pressure -= 0.1
+        elif long_term_trend < -0.1:  # Sustained decline
+            market_pressure -= 0.05
         elif long_term_trend > 0.1:  # Sustained growth
-            market_pressure += 0.1
+            market_pressure += 0.05
+
+        # Special crisis intervention for luxury goods
+        if (self.firm_type == "luxury" and 
+            self.average_demand < self.production_capacity * 0.15 and
+            sell_through_rate < 0.3):
+            market_pressure -= 0.6  # Aggressive price cutting to stimulate demand
 
         # Cap market_pressure between -1 and 1
         market_pressure = max(-1.0, min(market_pressure, 1.0))
 
-        markup_change = market_pressure*0.5
-        
+        # Apply more aggressive markup changes for luxury goods in crisis
+        if self.firm_type == "luxury" and market_pressure < -0.5:
+            markup_change = market_pressure * 0.8  # More aggressive for luxury in crisis
+        else:
+            markup_change = market_pressure * 0.5  # Original logic
+
         self.markup += markup_change
-        self.markup = max(0.01, self.markup)
-        
-        ''' # make sure profit margin stays realistic
-        if self.firm_type == "necessity":
-            self.markup = max(min(self.markup, 0.1), 0.35) # 10-35% margin
-        '''
-        '''
-        else:  # necessity
-            self.markup = max(min(self.markup, 0.25), 0.05)  # 5-25% margin
-        '''
+        self.markup = max(0.5, self.markup)  # Allow very low markup to break price spirals
 
         # Update product price
-        old_price = self.product_price
         calculated_price = cost_per_unit * (1 + self.markup)
-        self.product_price = max(calculated_price, self.min_price)
-        #print(f"[DEBUG] Firm {self.unique_id} price calculation in adjust_price: costs: {self.costs:.2f}, produced: {produced_units}, " + 
-              #f"cost_per_unit: {cost_per_unit:.2f}, markup: {self.markup:.2f}, " +
-              #f"old price: {old_price:.2f}, new price: {self.product_price:.2f}")
+        
+        # More flexible minimum price for luxury goods in crisis
+        if (self.firm_type == "luxury" and 
+            self.average_demand < self.production_capacity * 0.2):
+            # Allow pricing closer to cost during crisis
+            flexible_min_price = self.production_cost * 1.02
+        else:
+            flexible_min_price = self.min_price
+            
+        self.product_price = max(calculated_price, flexible_min_price)
 
     def adjust_employees(self):
         """Adjust number of employees based on profit trends."""
@@ -354,8 +407,9 @@ class FirmAgent(mesa.Agent):
                     action_taken = "hired (profits stable)"
             else: # Profits are falling (p0 < avg_prev_2_steps_profit, but p0 still >= 0, and not stable)
                 # print(f"[DEBUG] Firm {self.unique_id} ({self.firm_type}/{self.firm_area}): Profiting. Profits falling (P0: {p0:.2f}, AvgP1P2: {avg_prev_2_steps_profit:.2f}). Firing.")
-                if self.fire_least_productive():
-                    action_taken = "fired (profits falling)"
+                #if self.fire_least_productive():
+                    #action_taken = "fired (profits falling)"
+                pass
         
         # if action_taken != "none" and action_taken != "monitoring (losses decreasing)":
         #     print(f"[INFO] Firm {self.unique_id} ({self.firm_type}/{self.firm_area}) - Employee Adjustment: {action_taken}. Profit P0: {p0:.2f}, Avg(P1,P2): {avg_prev_2_steps_profit:.2f}, Stable: {is_stable}, Num Employees: {self.num_employees}")
@@ -374,8 +428,8 @@ class FirmAgent(mesa.Agent):
         employee_productivity = []
         for person in self.employees:
             skill_level = person.skill_level
-            labor = person.labor # Assuming 'labor' is a good proxy for work_hours or contribution
-            productivity = (skill_level * labor) / (person.wage + 1e-6) # Add epsilon to avoid division by zero
+            labor = person.labor
+            productivity = (skill_level * labor) / (person.wage + 1e-6)
             employee_productivity.append((productivity, person))
         
         if not employee_productivity:

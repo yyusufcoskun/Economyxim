@@ -135,7 +135,7 @@ class EconomicSimulationModel(mesa.Model):
             production_capacity=[random.randint(900, 2100) for _ in range(n_technical)],
             markup=7,
             production_cost=[random.uniform(50.0, 150.0) for _ in range(n_technical)],
-            entry_wage=[random.randint(180000, 225000) for _ in range(n_technical)],
+            entry_wage=[random.randint(144000, 180000) for _ in range(n_technical)],
             initial_employee_target=[random.randint(10, 80) for _ in range(n_technical)],
             #production_level=[random.uniform(0.5, 0.9) for _ in range(n_technical)]
         )
@@ -151,7 +151,7 @@ class EconomicSimulationModel(mesa.Model):
             production_capacity=[random.randint(600, 1500) for _ in range(n_creative)],
             markup=6,
             production_cost=[random.uniform(40.0, 80.0) for _ in range(n_creative)],
-            entry_wage=[random.randint(135000, 180000) for _ in range(n_creative)],
+            entry_wage=[random.randint(108000, 144000) for _ in range(n_creative)],
             initial_employee_target=[random.randint(5, 30) for _ in range(n_creative)],
             #production_level=[random.uniform(0.4, 0.8) for _ in range(n_creative)]
         )
@@ -167,7 +167,7 @@ class EconomicSimulationModel(mesa.Model):
             production_capacity=[random.randint(450, 1200) for _ in range(n_social)],
             markup=5,
             production_cost=[random.uniform(60.0, 100.0) for _ in range(n_social)],
-            entry_wage=[random.randint(150000, 195000) for _ in range(n_social)],
+            entry_wage=[random.randint(120000, 156000) for _ in range(n_social)],
             initial_employee_target=[random.randint(8, 40) for _ in range(n_social)],
             #production_level=[random.uniform(0.5, 0.9) for _ in range(n_social)]
         )
@@ -183,7 +183,7 @@ class EconomicSimulationModel(mesa.Model):
             production_capacity=[random.randint(300, 1000) for _ in range(n_analytical)],
             markup=6,
             production_cost=[random.uniform(80.0, 150.0) for _ in range(n_analytical)],
-            entry_wage=[random.randint(165000, 215000) for _ in range(n_analytical)],
+            entry_wage=[random.randint(132000, 172000) for _ in range(n_analytical)],
             initial_employee_target=[random.randint(5, 25) for _ in range(n_analytical)],
             #production_level=[random.uniform(0.6, 0.9) for _ in range(n_analytical)]
         )
