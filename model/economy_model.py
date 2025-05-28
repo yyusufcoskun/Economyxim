@@ -91,7 +91,7 @@ class EconomicSimulationModel(mesa.Model):
         # --- NECESSITY FIRMS ---
         
         # Physical firms (manufacturing, construction, farming) - 25 firms
-        n_physical = 30
+        n_physical = 25
         FirmAgent.create_agents(
             model=self,
             n=n_physical,
@@ -107,7 +107,7 @@ class EconomicSimulationModel(mesa.Model):
         )
         
         # Service firms (retail, food service, basic services) - 30 firms
-        n_service = 30
+        n_service = 25
         FirmAgent.create_agents(
             model=self,
             n=n_service,
@@ -197,7 +197,7 @@ class EconomicSimulationModel(mesa.Model):
             initial_employee_target=240
         )
 
-        n_households = 1000
+        n_households = 1200
         HouseholdAgent.create_agents(
             model=self,
             n=n_households,
@@ -292,9 +292,10 @@ class EconomicSimulationModel(mesa.Model):
             placed_in_a_pass = placed_in_this_pass # Continue if at least one person was placed in the full pass
 
         if employed_to_place: # Should only happen if no households have space left
-            for person in employed_to_place:
-                 print(f"[ERROR] EconomicSimulationModel: Could not place employed Person {person.unique_id} (Employer: {person.employer.unique_id if person.employer else 'None'}) in any household due to lack of overall capacity. This person may be removed if unhoused.")
-                 # These persons remain in employed_to_place (and thus were in available_persons and not removed)
+            print(f"[DEBUG] WARNING!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!11 EconomicSimulationModel: {len(employed_to_place)} employed persons could not be placed in any household due to lack of capacity.")
+            #for person in employed_to_place:
+                 #print(f"[ERROR] EconomicSimulationModel: Could not place employed Person {person.unique_id} (Employer: {person.employer.unique_id if person.employer else 'None'}) in any household due to lack of overall capacity. This person may be removed if unhoused.")
+                  # These persons remain in employed_to_place (and thus were in available_persons and not removed)
                  # and their person.household is None. The cleanup step will handle them.
 
         # print(f"[INFO] Distributing unemployed persons... {len(unemployed_to_place)} remaining.")

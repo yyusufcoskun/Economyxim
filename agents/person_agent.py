@@ -8,15 +8,13 @@ class PersonAgent(mesa.Agent):
     """
         Initialize a person agent.
         Args:
-            employer: The firm that employs this person (None if unemployed)
-            skill_type: skill type this person has (e.g. "technical", "physical", etc.)
-            job_seeking: Whether this person is actively looking for work
-            wage: Current wage/salary of the person
-            work_hours: Preferred hours worked per week
+            model: The main simulation model.
+            job_seeking: Whether the person is actively looking for work.
+            wage: Current wage/salary of the person.
+            work_hours: Preferred hours worked per week.
         """
     def __init__(self, model, job_seeking=True, wage=0, work_hours=40):
         super().__init__(model)
-        # print(f"[DEBUG] PersonAgent {self.unique_id}: Initializing.") # Uncomment if very verbose logging is needed
 
         self.household = None # Will be set by HouseholdAgent
         self.employer = None

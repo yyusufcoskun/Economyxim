@@ -360,7 +360,7 @@ class HouseholdAgent(mesa.Agent):
         #   print(f"[DEBUG] Household {self.unique_id} - Total household savings: {self.total_household_savings}, Debt level: {self.debt_level}")
 
         # Calculate necessity fulfillment percentage
-        necessity_fulfillment = min(1.0, total_necessity_spent / (total_necessity_target - 2000)) if total_necessity_target > 0 else 1.0
+        necessity_fulfillment = min(1.0, total_necessity_spent / (total_necessity_target - 5000)) if total_necessity_target > 0 else 1.0
         
         # Increment model counter if necessity goal not met
         if total_necessity_target > 0 and necessity_fulfillment < 1.0:

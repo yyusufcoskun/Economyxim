@@ -26,10 +26,10 @@ class FirmAgent(mesa.Agent):
         # Pricing and financial parameters
         self.capital = 1000000 # TODO give initial capital to all firms
         self.markup = markup
-        self.product_price = self.production_cost * (1 + markup)  # Initialize with a non-zero price
-        self.price_one_step_ago = self.product_price # Price from one step ago
-        self.price_two_steps_ago = self.product_price # Price from two steps ago
-        self.min_price = self.production_cost * 1.05  # Minimum 5% above production cost
+        # self.product_price = self.production_cost * (1 + markup) # OLD INITIALIZATION
+        self.price_one_step_ago = 0 # Will be set after initial price
+        self.price_two_steps_ago = 0 # Will be set after initial price
+        self.min_price = 0 # Will be set after initial production_cost consideration
         self.revenue = 0
         self.costs = 0
         self.profit = 0
@@ -37,11 +37,11 @@ class FirmAgent(mesa.Agent):
         self.units_sold_this_step = 0 # ADDED
         self.total_requested_this_step = 0 # ADDED
         self.profit_history = [] # ADDED for new hiring logic
-        self.profit_history_length = 3 # ADDED for new hiring logic
+        self.profit_history_length = 4 # ADDED for new hiring logic, now 4 for p0,p1,p2,p3
         self.tax_paid_this_step = 0.0 # ADDED: To store tax paid in a step
         
         # Inventory and demand tracking
-        self.inventory = self.production_capacity*5  # Initialize with some inventory
+        self.inventory = self.production_capacity*2  # Initialize with some inventory
         #self.demand_received = 0  # Demand received from households
         self.unmet_demand = 0
         self.demand_history = []
@@ -92,11 +92,41 @@ class FirmAgent(mesa.Agent):
         # Must correspond to self.demand_history_length
         self.demand_averaging_weights = [0.1, 0.15, 0.2, 0.25, 0.3]
 
-        # Debug output
-        print(f"[DEBUG] Firm {self.unique_id} ({firm_type}/{firm_area}) initialized with price: {self.product_price:.2f}")
-    
+        # Populate initial workforce first to determine initial labor costs
         self._populate_initial_workforce(initial_employee_target)
 
+        # Calculate initial costs and price based on the initial workforce
+        initial_wage_costs = self.calculate_total_wage_cost()
+        initial_added_labor = self._calculate_total_labor()
+        
+        # Estimate initial production based on initial labor and production level
+        # This mirrors the logic in the step() method for produced_units
+        initial_labor_added_capacity = self.production_capacity + initial_added_labor
+        initial_produced_units = round(initial_labor_added_capacity * self.production_level)
+        
+        initial_material_costs = self.production_cost * initial_produced_units
+        initial_total_costs = initial_wage_costs + initial_material_costs
+        
+        if initial_produced_units > 0:
+            initial_cost_per_unit = initial_total_costs / initial_produced_units
+        else:
+            # Fallback if no initial production (e.g., no employees, zero production level)
+            # Use base production_cost, which is material cost per unit
+            initial_cost_per_unit = self.production_cost 
+
+        self.product_price = initial_cost_per_unit * (1 + self.markup)
+        self.min_price = initial_cost_per_unit * 1.05 # Min price based on initial cost per unit
+
+        # Now set historical prices based on the calculated initial product_price
+        self.price_one_step_ago = self.product_price
+        self.price_two_steps_ago = self.product_price
+
+        # Add employee adjustment cooldown - only adjust every 2 steps
+        self.employee_adjustment_cooldown = 0  # 0 means can adjust this step
+
+        # Debug output
+        print(f"[DEBUG] Firm {self.unique_id} ({firm_type}/{firm_area}) initialized with price: {self.product_price:.2f}, initial_cost_per_unit: {initial_cost_per_unit:.2f}")
+    
     def _populate_initial_workforce(self, target_count):
         """
         Hires the initial set of employees for the firm based on skill mix and availability.
@@ -233,11 +263,11 @@ class FirmAgent(mesa.Agent):
             self.production_level = min(1.0, self.production_level + 0.03)
         elif sell_through_rate < 0.3 and self.inventory > self.average_demand * 2:
             # Poor sales AND high inventory - reduce but not below minimum
-            new_level = self.production_level - 0.03
+            new_level = self.production_level - 0.3
             self.production_level = max(new_level, min_production_level)
         elif self.inventory > self.average_demand * 3:
             # Very high inventory - more aggressive reduction but still respect minimum
-            new_level = self.production_level - 0.05
+            new_level = self.production_level - 0.5
             self.production_level = max(new_level, min_production_level)
             
         # Special handling for luxury firms in crisis
@@ -357,65 +387,79 @@ class FirmAgent(mesa.Agent):
     def adjust_employees(self):
         """Adjust number of employees based on profit trends."""
 
-        if len(self.profit_history) < self.profit_history_length:
-            # Not enough data to make a decision based on 3-step trends
-            # print(f"[DEBUG] Firm {self.unique_id} ({self.firm_type}/{self.firm_area}): Not enough profit history ({len(self.profit_history)} steps) to adjust employees. Current profit: {self.profit:.2f}")
+        # Check cooldown - only adjust employees every 2 steps
+        if self.employee_adjustment_cooldown > 0:
+            self.employee_adjustment_cooldown -= 1
+            # print(f"[DEBUG] Firm {self.unique_id}: Employee adjustment on cooldown. Steps remaining: {self.employee_adjustment_cooldown}")
             return
 
-        # p0 is current profit, p1 is one step ago, p2 is two steps ago
+        if len(self.profit_history) < self.profit_history_length:
+            # Not enough data to make a decision (need p0, p1, p2, p3)
+            return
+
+        # p0 is current profit, p1 is one step ago, p2 is two steps ago, p3 is three steps ago
         p0 = self.profit_history[-1]
         p1 = self.profit_history[-2]
         p2 = self.profit_history[-3]
+        p3 = self.profit_history[-4]
 
-        avg_prev_2_steps_profit = (p1 + p2) / 2.0
+        # Use average of the three *past* steps as the reference for current profit p0
+        avg_past_3_steps_profit = (p1 + p2 + p3) / 3.0
         
         is_stable = False
-        # Handle case where avg_prev_2_steps_profit is zero to avoid division by zero or issues with percentage
-        if avg_prev_2_steps_profit == 0:
-            # If previous average was zero, stable only if current is also zero (within a small tolerance for float issues)
-            is_stable = abs(p0) < 1e-6 # Consider very close to zero as stable with zero
+        # Handle case where avg_past_3_steps_profit is zero 
+        if avg_past_3_steps_profit == 0:
+            is_stable = abs(p0) < 1e-6 # Stable if p0 is also near zero
         else:
-            # Stable if current profit is within 5% of the average of the previous two steps' profit
-            is_stable = abs(p0 - avg_prev_2_steps_profit) < (0.05 * abs(avg_prev_2_steps_profit))
+            # Stable if current profit is within 5% of the average of the *past three* steps' profit
+            is_stable = abs(p0 - avg_past_3_steps_profit) < (0.05 * abs(avg_past_3_steps_profit))
 
         at_a_loss = p0 < 0
 
         action_taken = "none" # For debugging
+        adjustment_made = False  # Track if we made an adjustment
 
         if at_a_loss:
             # Company is currently losing money
-            if p0 < avg_prev_2_steps_profit and not is_stable: # Losses are getting bigger (p0 is more negative) and not stable
-                # print(f"[DEBUG] Firm {self.unique_id} ({self.firm_type}/{self.firm_area}): At a loss. Losses increasing (P0: {p0:.2f}, AvgP1P2: {avg_prev_2_steps_profit:.2f}). Firing.")
+            if p0 < avg_past_3_steps_profit and not is_stable: # Losses are worsening compared to past 3 steps avg
+                # print(f"[DEBUG] Firm {self.unique_id} ({self.firm_type}/{self.firm_area}): At a loss. Losses increasing (P0: {p0:.2f}, AvgP1P2P3: {avg_past_3_steps_profit:.2f}). Firing.")
                 if self.fire_least_productive():
                     action_taken = "fired (losses increasing)"
-            elif is_stable: # Losses are stable
-                # print(f"[DEBUG] Firm {self.unique_id} ({self.firm_type}/{self.firm_area}): At a loss. Losses stable (P0: {p0:.2f}, AvgP1P2: {avg_prev_2_steps_profit:.2f}). Firing.")
+                    adjustment_made = True
+            elif is_stable: # Losses are stable compared to past 3 steps avg
+                # print(f"[DEBUG] Firm {self.unique_id} ({self.firm_type}/{self.firm_area}): At a loss. Losses stable (P0: {p0:.2f}, AvgP1P2P3: {avg_past_3_steps_profit:.2f}). Firing.")
                 if self.fire_least_productive():
                      action_taken = "fired (losses stable)"
-            else: # Losses are getting smaller (p0 is less negative or positive, but started < 0, and not stable)
-                # print(f"[DEBUG] Firm {self.unique_id} ({self.firm_type}/{self.firm_area}): At a loss, but losses decreasing or turned to profit (P0: {p0:.2f}, AvgP1P2: {avg_prev_2_steps_profit:.2f}). No change.")
+                     adjustment_made = True
+            else: # Losses are improving compared to past 3 steps avg (p0 > avg_past_3_steps_profit), but still p0 < 0
+                # print(f"[DEBUG] Firm {self.unique_id} ({self.firm_type}/{self.firm_area}): At a loss, but losses decreasing or turned to profit (P0: {p0:.2f}, AvgP1P2P3: {avg_past_3_steps_profit:.2f}). No change.")
                 action_taken = "monitoring (losses decreasing)"
                 pass # Do nothing, monitor situation
         else: # Profiting (p0 >= 0)
-            if p0 > avg_prev_2_steps_profit and not is_stable: # Profits are getting larger and not stable
-                # print(f"[DEBUG] Firm {self.unique_id} ({self.firm_type}/{self.firm_area}): Profiting. Profits increasing (P0: {p0:.2f}, AvgP1P2: {avg_prev_2_steps_profit:.2f}). Hiring.")
+            if p0 > avg_past_3_steps_profit and not is_stable: # Profits are improving compared to past 3 steps avg
+                # print(f"[DEBUG] Firm {self.unique_id} ({self.firm_type}/{self.firm_area}): Profiting. Profits increasing (P0: {p0:.2f}, AvgP1P2P3: {avg_past_3_steps_profit:.2f}). Hiring.")
                 if self.hire_new_employee():
                     action_taken = "hired (profits increasing)"
-            elif is_stable: # Profits are stable
-                # print(f"[DEBUG] Firm {self.unique_id} ({self.firm_type}/{self.firm_area}): Profiting. Profits stable (P0: {p0:.2f}, AvgP1P2: {avg_prev_2_steps_profit:.2f}). Hiring.")
+                    adjustment_made = True
+            elif is_stable: # Profits are stable compared to past 3 steps avg
+                # print(f"[DEBUG] Firm {self.unique_id} ({self.firm_type}/{self.firm_area}): Profiting. Profits stable (P0: {p0:.2f}, AvgP1P2P3: {avg_past_3_steps_profit:.2f}). Hiring.")
                 if self.hire_new_employee():
                     action_taken = "hired (profits stable)"
-            else: # Profits are falling (p0 < avg_prev_2_steps_profit, but p0 still >= 0, and not stable)
-                # print(f"[DEBUG] Firm {self.unique_id} ({self.firm_type}/{self.firm_area}): Profiting. Profits falling (P0: {p0:.2f}, AvgP1P2: {avg_prev_2_steps_profit:.2f}). Firing.")
-                #if self.fire_least_productive():
-                    #action_taken = "fired (profits falling)"
+                    adjustment_made = True
+            else: # Profits are falling compared to past 3 steps avg (p0 < avg_past_3_steps_profit, but p0 still >= 0)
+                # print(f"[DEBUG] Firm {self.unique_id} ({self.firm_type}/{self.firm_area}): Profiting. Profits falling (P0: {p0:.2f}, AvgP1P2P3: {avg_past_3_steps_profit:.2f}). Firing.")
+                # This is where you might consider firing if profits are falling, even if positive.
+                # For now, it remains pass as per original logic before aggressive changes.
                 pass
+
+        # Set cooldown if we made an adjustment - wait 2 steps before next adjustment
+        if adjustment_made:
+            self.employee_adjustment_cooldown = 1  # Will be decremented next step, so adjustment possible in 2 steps
         
         # if action_taken != "none" and action_taken != "monitoring (losses decreasing)":
-        #     print(f"[INFO] Firm {self.unique_id} ({self.firm_type}/{self.firm_area}) - Employee Adjustment: {action_taken}. Profit P0: {p0:.2f}, Avg(P1,P2): {avg_prev_2_steps_profit:.2f}, Stable: {is_stable}, Num Employees: {self.num_employees}")
+        #     print(f"[INFO] Firm {self.unique_id} ({self.firm_type}/{self.firm_area}) - Employee Adjustment: {action_taken}. Profit P0: {p0:.2f}, AvgP1P2P3: {avg_past_3_steps_profit:.2f}, Stable: {is_stable}, Num Employees: {self.num_employees}")
         # elif action_taken == "monitoring (losses decreasing)":
-        #     print(f"[INFO] Firm {self.unique_id} ({self.firm_type}/{self.firm_area}) - Employee Adjustment: {action_taken}. Profit P0: {p0:.2f}, Avg(P1,P2): {avg_prev_2_steps_profit:.2f}, Num Employees: {self.num_employees}")
-
+        #     print(f"[INFO] Firm {self.unique_id} ({self.firm_type}/{self.firm_area}) - Employee Adjustment: {action_taken}. Profit P0: {p0:.2f}, AvgP1P2P3: {avg_past_3_steps_profit:.2f}, Num Employees: {self.num_employees}")
 
     def fire_least_productive(self):
         """Fire the employee with lowest productivity (skill * work_hours / wage).
