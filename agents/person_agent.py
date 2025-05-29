@@ -5,15 +5,24 @@ import random
 
 
 class PersonAgent(mesa.Agent):
-    """
-        Initialize a person agent.
-        Args:
-            model: The main simulation model.
-            job_seeking: Whether the person is actively looking for work.
-            wage: Current wage/salary of the person.
-            work_hours: Preferred hours worked per week.
-        """
+    '''
+    Represents an individual person in the economic simulation.
+    
+    This agent can be employed by firms, possess skills, and seek employment.
+    Persons belong to households and contribute to household income through
+    wages earned from employment. They have different skill types and levels
+    that determine their suitability for various jobs.
+    '''
     def __init__(self, model, job_seeking=True, wage=0, work_hours=40):
+        '''
+        Initialize a person agent with employment characteristics and skills.
+        
+        Parameters:
+        - model: The main simulation model
+        - job_seeking: Whether the person is actively looking for work
+        - wage: Current wage/salary of the person
+        - work_hours: Preferred hours worked per week
+        '''
         super().__init__(model)
 
         self.household = None # Will be set by HouseholdAgent
@@ -43,6 +52,17 @@ class PersonAgent(mesa.Agent):
         self.studying_for_min_skills = False
         
     def step(self):
+        '''
+        Execute one step of the person agent's life cycle.
+        
+        This method handles the person's employment status, skill development,
+        and job-seeking behavior. Key activities include:
+        - Determining if the person needs to study to reach minimum skill requirements
+        - Increasing skill levels through study
+        - Managing job-seeking status based on employment and study status
+        
+        The step method is called by the model scheduler at each simulation step.
+        '''
         '''
         # Improve skills if employed
         if self.employer is not None:

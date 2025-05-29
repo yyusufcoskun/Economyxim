@@ -10,7 +10,25 @@ from agents import PersonAgent
 
 
 class EconomicSimulationModel(mesa.Model):
+    '''
+    Main model class for the economic simulation based on Mesa framework.
+    
+    This class coordinates all agents in the economy and handles the simulation steps.
+    It creates and manages agents (firms, households, persons, government), establishes
+    their initial states, and coordinates their interactions throughout the simulation.
+    The model also collects and tracks economic data using Mesa's DataCollector.
+    '''
     def __init__(self):
+        '''
+        Initialize the economic simulation model with all agent types and relationships.
+        
+        This method:
+        1. Sets up data collection for economic indicators
+        2. Creates government, firm, household, and person agents
+        3. Establishes initial conditions for the economy
+        4. Assigns persons to households
+        5. Handles cleanup of unassigned agents
+        '''
         super().__init__()
         
         # Initialize step counter
@@ -18,6 +36,7 @@ class EconomicSimulationModel(mesa.Model):
         self.available_persons = []
         self.num_persons = 30000
 
+        # Setup data collection for model analysis and visualization
         self.datacollector = mesa.DataCollector(
             model_reporters={
                 "Reserves": lambda m: m.government_agent.reserves,
@@ -78,13 +97,13 @@ class EconomicSimulationModel(mesa.Model):
             }
         )
         
+        # Create the government agent first
         self.government_agent = GovernmentAgent.create_agents(model=self, n=1)[0]
         
-        # print(f"[DEBUG] EconomicSimulationModel: Initializing {self.num_persons} PersonAgents.")
+        # Create population of persons
         for i in range(self.num_persons):
             person = PersonAgent(model=self)
             self.available_persons.append(person)
-        # print(f"[DEBUG] EconomicSimulationModel: Created {len(self.schedule.agents)} total agents after PersonAgent init, {len(self.available_persons)} available persons.")
 
         # Create firms with different areas and suitable parameters
         
@@ -106,7 +125,7 @@ class EconomicSimulationModel(mesa.Model):
             #production_level=[random.uniform(0.7, 1) for _ in range(n_physical)]
         )
         
-        # Service firms (retail, food service, basic services) - 30 firms
+        # Service firms (retail, food service, basic services) - 25 firms
         n_service = 25
         FirmAgent.create_agents(
             model=self,
@@ -189,7 +208,7 @@ class EconomicSimulationModel(mesa.Model):
         )
 
         # --- INTERMEDIARY FIRM ---
-
+        # Create the intermediary firm that supplies raw materials to other firms
         n_intermediary = 1
         IntermediaryFirmAgent.create_agents(
             model=self,
@@ -197,6 +216,7 @@ class EconomicSimulationModel(mesa.Model):
             initial_employee_target=240
         )
 
+        # Create households
         n_households = 1200
         HouseholdAgent.create_agents(
             model=self,
@@ -205,27 +225,21 @@ class EconomicSimulationModel(mesa.Model):
             income_tax_rate=0.15  
         )
 
+        # Assign persons to households
         self._assign_persons_to_households()
 
-        # Step 6: Cleanup Unassigned PersonAgents
-        # print(f"[DEBUG] EconomicSimulationModel: Total agents in scheduler before cleanup: {len(self.agents)}.")
-
+        # Cleanup Unassigned PersonAgents
         persons_to_remove = list(self.available_persons) 
         removed_count = 0
         actually_removed_from_schedule_count = 0
 
-        # print(f"[DEBUG] EconomicSimulationModel: Cleanup - Iterating through {len(persons_to_remove)} persons found in available_persons list.")
-
         for person in persons_to_remove:
-            # NEW CRITERIA: Any person who is not in a household by this stage should be removed.
-            # This includes employed persons who didn't get a household, and unemployed who didn't.
+            # Any person who is not in a household by this stage should be removed
             if person.household is None:
-                # print(f"[DEBUG] EconomicSimulationModel: Removing Person {person.unique_id} (Employer: {person.employer is not None}, Household: {person.household is None}) because they are not in a household.")
                 try:
                     self.agents.remove(person) # Remove from scheduler
                     actually_removed_from_schedule_count += 1
                 except ValueError:
-                    #print(f"[DEBUG] EconomicSimulationModel: Person {person.unique_id} already removed from schedule or not found.")
                     pass
 
                 if hasattr(self, 'agents') and person in self.agents:
@@ -245,18 +259,25 @@ class EconomicSimulationModel(mesa.Model):
         print(f"[DEBUG] EconomicSimulationModel: Removed {removed_count} persons from available_persons list based on household status.")
         print(f"[DEBUG] EconomicSimulationModel: Attempted to remove {actually_removed_from_schedule_count} persons from schedule.")
         print(f"[DEBUG] EconomicSimulationModel: {len(self.available_persons)} persons remaining in available_persons list (should be 0).")
-        print(f"[DEBUG] EconomicSimulationModel: Total agents in scheduler after cleanup: {len(self.agents)}.") # Use self.schedule.agents for scheduler count
+        print(f"[DEBUG] EconomicSimulationModel: Total agents in scheduler after cleanup: {len(self.agents)}.")
 
 
     def _assign_persons_to_households(self):
-        """
-        Assigns persons to households with a strategy to ensure employed persons are
-        housed and to promote heterogeneity within households.
-        """
+        '''
+        Assign person agents to household agents.
+        
+        This method uses a prioritized strategy that ensures employed persons are
+        placed in households first, then fills remaining household spaces with
+        unemployed persons. The goal is to distribute employed persons fairly
+        across households while maximizing household occupancy.
+        
+        After assignment, each household's employment statistics are updated.
+        '''
         if not hasattr(self, 'available_persons'):
             print("[ERROR] _assign_persons_to_households: self.available_persons not found.")
             return
 
+        # Separate employed and unemployed persons for prioritized placement
         employed_to_place = [p for p in self.available_persons if p.employer is not None and p.household is None]
         unemployed_to_place = [p for p in self.available_persons if p.employer is None and p.household is None]
 
@@ -268,8 +289,7 @@ class EconomicSimulationModel(mesa.Model):
 
         print(f"[INFO] Assigning persons: Initial - {len(employed_to_place)} employed, {len(unemployed_to_place)} unemployed. {len(all_households)} households.")
 
-        # Iteratively distribute employed persons, one per household per pass
-        # print("[INFO] Distributing employed persons...")
+        # Distribute employed persons first, one per household per pass
         placed_in_a_pass = True # Flag to continue passes if someone was placed
         while employed_to_place and placed_in_a_pass:
             placed_in_this_pass = False
@@ -284,7 +304,7 @@ class EconomicSimulationModel(mesa.Model):
                     hh.members.append(person)
                     person.household = hh
                     hh.current_population += 1
-                    if person in self.available_persons: # Should always be true as employed_to_place is from available_persons
+                    if person in self.available_persons:
                         self.available_persons.remove(person)
                     placed_in_this_pass = True
                     # print(f"[DEBUG] Assigned Employed {person.unique_id} to HH {hh.unique_id} (Pop: {hh.current_population}/{hh.num_people})")
@@ -298,28 +318,39 @@ class EconomicSimulationModel(mesa.Model):
                   # These persons remain in employed_to_place (and thus were in available_persons and not removed)
                  # and their person.household is None. The cleanup step will handle them.
 
-        # print(f"[INFO] Distributing unemployed persons... {len(unemployed_to_place)} remaining.")
-        # Distribute unemployed persons into remaining spots
-        random.shuffle(all_households) # Shuffle again before distributing unemployed
+        # Fill remaining household space with unemployed persons
+        random.shuffle(all_households)
         for hh in all_households:
             while hh.current_population < hh.num_people and unemployed_to_place:
                 person = unemployed_to_place.pop(0)
                 hh.members.append(person)
                 person.household = hh
                 hh.current_population += 1
-                if person in self.available_persons: # Should always be true
+                if person in self.available_persons:
                     self.available_persons.remove(person)
-                # print(f"[DEBUG] Assigned Unemployed {person.unique_id} to HH {hh.unique_id} (Pop: {hh.current_population}/{hh.num_people})")
 
-        # Final step: update employment counts for all households
+        # Update employment counts for all households
         for hh_agent in all_households:
             if hasattr(hh_agent, '_update_employment_counts'):
                 hh_agent._update_employment_counts()
-            # print(f"[DEBUG] HH {hh_agent.unique_id}: Pop {hh_agent.current_population}/{hh_agent.num_people}. Employed: {hh_agent.num_working_people}")
         
         print(f"[INFO] Person assignment complete. {len(self.available_persons)} persons remain unassigned (these will be cleaned up if household is None).")
         
     def step(self):
+        '''
+        Execute one step of the economic simulation.
+        
+        This method coordinates the sequential actions of all agents in the economy:
+        1. Government acts first (fiscal policy, transfers, taxes)
+        2. Households generate demand
+        3. Firms respond to demand and produce goods
+        4. Intermediary firms process demand from production firms
+        5. Persons update skills and job-seeking status
+        6. Economic data is collected for analysis
+        
+        This step sequence ensures proper flow of money, goods, and services
+        throughout the simulated economy.
+        '''
         # Initialize counter for unmet necessity households at the start of each step
         self.unmet_necessity_households_count = 0
         
@@ -349,15 +380,15 @@ class EconomicSimulationModel(mesa.Model):
         # Step 6: Collect data after all agents have completed their actions for the current step
         self.datacollector.collect(self)
         
-        # Find the highest capital value among all firms (can be part of datacollection if needed often)
+        # Find the highest capital value among all firms
         highest_capital = 0
-        for agent in self.agents: # Iterate through all agents, not just firms, if capital can exist elsewhere
+        for agent in self.agents:
             if hasattr(agent, 'capital') and agent.capital is not None and agent.capital > highest_capital:
                 highest_capital = agent.capital
         
         # Step 7: Increment step counter
         self.current_step += 1
         
-        # Optional: Print step summary information
+        # Print step summary information
         print(f"[INFO] Step {self.current_step}: Households not meeting necessity goal: {self.unmet_necessity_households_count}")
         print(f"[DEBUG] Step {self.current_step} completed | Highest Capital: {highest_capital:.2f}")

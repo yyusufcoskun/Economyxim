@@ -168,36 +168,6 @@ def main():
         aggfunc="sum"
     )
 
-    # Add new graph for average unmet demand
-    analysis.create_time_series_by_type(
-        df=agent_data,
-        value_col="UnmetDemand",
-        title="Average Unmet Demand by Firm Type Over Time",
-        xlabel="Time Step",
-        ylabel="Average Unmet Demand",
-        figsize=(12, 6),
-        grid=True,
-        legend=True,
-        filename="firm_average-unmet-demand.png",
-        results_folder=output_results_folder,
-        aggfunc="mean"  # Explicitly using mean, though it's the default
-    )
-
-    # Add new graph for total unmet demand
-    analysis.create_time_series_by_type(
-        df=agent_data,
-        value_col="UnmetDemand",
-        title="Total Unmet Demand by Firm Type Over Time",
-        xlabel="Time Step",
-        ylabel="Total Unmet Demand",
-        figsize=(12, 6),
-        grid=True,
-        legend=True,
-        filename="firm_total-unmet-demand.png",
-        results_folder=output_results_folder,
-        aggfunc="sum"
-    )
-
     analysis.create_time_series_by_type(
         df=agent_data,
         value_col="Profit",

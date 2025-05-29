@@ -8,9 +8,26 @@ import random
 
 
 class GovernmentAgent(mesa.Agent):
+    '''
+    Represents the government entity in the economic simulation.
+    
+    This agent is responsible for fiscal policy, taxation, welfare programs, 
+    and economic monitoring. It collects taxes from households and firms,
+    distributes unemployment benefits, provides support to low-income households,
+    purchases goods from firms, and calculates key economic indicators.
+    '''
     def __init__(self, model):
+        '''
+        Initialize a new government agent with financial parameters and tax policies.
+        
+        Sets up the government's initial reserves, tax rates for different income brackets,
+        corporate tax rate, and initializes economic indicators tracking.
+        
+        Parameters:
+        - model: Mesa model instance the agent belongs to
+        '''
+        
         super().__init__(model)
-
 
         self.reserves = 100000000
         self.previous_reserves = self.reserves  
@@ -33,13 +50,14 @@ class GovernmentAgent(mesa.Agent):
         self.step_corporate_tax_revenue = 0
 
     def _calculate_inflation_rate(self):
-        """
-        Calculate the average inflation rate based on price changes of all firms over a 2-step period,
-        weighted by firm type (70% for necessity, 30% for luxury).
-        Inflation for each firm is (current_price - price_two_steps_ago) / price_two_steps_ago.
-        Overall inflation is the weighted average of individual firm inflations.
-        During an initial burn-in period, inflation is reported as a fixed value (e.g., 3.0).
-        """
+        '''
+        Calculate inflation rate based on price changes across all firms.
+        
+        Inflation is computed as the weighted average of price changes over a 2-step period,
+        with necessity goods having 80% weight and luxury goods 20% weight. During an initial
+        burn-in period, a fixed inflation rate is used. After that, inflation is calculated
+        from actual price changes observed in the market.
+        '''
         BURN_IN_PERIOD = 5  # Number of initial steps to report fixed inflation
         NECESSITY_WEIGHT = 0.80
         LUXURY_WEIGHT = 0.20
@@ -57,6 +75,7 @@ class GovernmentAgent(mesa.Agent):
             self.inflation_rate = 0.0
             return
 
+        # Collect price changes by firm type
         for agent in firm_agents:
             if hasattr(agent, 'price_two_steps_ago') and \
                agent.price_two_steps_ago is not None and \
@@ -71,6 +90,7 @@ class GovernmentAgent(mesa.Agent):
                 elif agent.firm_type == "luxury":
                     luxury_price_changes.append(price_change)
         
+        # Calculate average inflation for each product category
         avg_necessity_inflation = 0.0
         if necessity_price_changes:
             avg_necessity_inflation = np.mean(necessity_price_changes)
@@ -79,18 +99,13 @@ class GovernmentAgent(mesa.Agent):
         if luxury_price_changes:
             avg_luxury_inflation = np.mean(luxury_price_changes)
 
-        # If one category has firms but the other doesn't, we should still calculate inflation.
-        # If a category has no firms, its contribution to weighted inflation is 0.
-        # If both have no firms (already handled by `if not firm_agents`), inflation is 0.
-
+        # Calculate weighted inflation based on available data
         if not necessity_price_changes and not luxury_price_changes:
-             # This case implies firms exist but none are 'necessity' or 'luxury' type, 
-             # or they don't have valid price histories.
             self.inflation_rate = 0.0
         elif not necessity_price_changes: # Only luxury firms with price changes
-            self.inflation_rate = avg_luxury_inflation * 100 # Effectively 100% weight to luxury if no necessity
+            self.inflation_rate = avg_luxury_inflation * 100
         elif not luxury_price_changes: # Only necessity firms with price changes
-            self.inflation_rate = avg_necessity_inflation * 100 # Effectively 100% weight to necessity if no luxury
+            self.inflation_rate = avg_necessity_inflation * 100
         else: # Both categories have firms with price changes
             self.inflation_rate = (avg_necessity_inflation * NECESSITY_WEIGHT + 
                                    avg_luxury_inflation * LUXURY_WEIGHT) * 100
@@ -99,10 +114,17 @@ class GovernmentAgent(mesa.Agent):
         # print(f"[INFLATION DEBUG] Avg Nec: {avg_necessity_inflation:.4f}, Avg Lux: {avg_luxury_inflation:.4f}, Weighted Infl: {self.inflation_rate:.2f}%")
 
     def _collect_taxes(self):
-        """
-        Apply the appropriate tax rate to each household based on their income bracket
-        and collect taxes into government reserves
-        """
+        '''
+        Collect income taxes from all households based on their income bracket.
+        
+        Applies the appropriate tax rate to each household's income and adds
+        the collected taxes to government reserves. Updates households with
+        their applicable tax rate for future calculations.
+        
+        Returns:
+        - Total tax revenue collected in this step
+        '''
+        
         self.step_tax_revenue = 0
         
         # Find all household agents
@@ -128,27 +150,38 @@ class GovernmentAgent(mesa.Agent):
         return self.step_tax_revenue
     
     def _collect_corporate_taxes(self):
-        """
-        Collect corporate taxes. Firms have already calculated their tax liability 
-        for their previous operational step, excluding revenue from direct government purchases.
-        This method sums the tax amounts that firms have determined they paid/owe.
-        """
+        '''
+        Collect corporate taxes from profitable firms.
+        
+        Firms calculate their own tax liability in their step method, excluding revenue
+        from direct government purchases. This method aggregates all firm tax payments
+        for the current step.
+        
+        Returns:
+        - Total corporate tax revenue collected in this step
+        '''
+        
         self.step_corporate_tax_revenue = 0
         firm_agents = [agent for agent in self.model.agents if isinstance(agent, FirmAgent)]
         for firm in firm_agents:
-            # getattr is used to safely access tax_paid_this_step, defaulting to 0 if not found
-            # This tax_paid_this_step was calculated by the firm in its *previous* step.
             self.step_corporate_tax_revenue += getattr(firm, 'tax_paid_this_step', 0)
         
+        #print(f"[CORP TAX] Collected   ₺{self.step_corporate_tax_revenue:.2f} in corporate taxes from {len(firm_agents)} firms")
+
         return self.step_corporate_tax_revenue
         
-
     def _calculate_and_distribute_unemployment_payments(self):
-        """
-        Calculate and distribute unemployment payments.
-        Each unemployed person receives a fixed amount.
-        Returns the total amount paid.
-        """
+        '''
+        Calculate and distribute unemployment benefits to jobless individuals.
+        
+        Identifies persons who are unemployed and actively seeking work, and provides
+        them with a fixed unemployment payment. This serves as a social safety net
+        and provides income to those without employment.
+        
+        Returns:
+        - Total amount of unemployment payments distributed
+        '''
+        
         total_unemployment_payments = 0
         person_agents = [p for p in self.model.agents if isinstance(p, PersonAgent)]
         unemployed_persons = [p for p in person_agents if p.employer is None and p.job_seeking]
@@ -163,11 +196,17 @@ class GovernmentAgent(mesa.Agent):
         return total_unemployment_payments
 
     def _calculate_and_distribute_low_income_transfers(self):
-        """
-        Calculate and distribute transfers to low-income households.
-        Households unable to meet necessity targets receive deficit + 5000.
-        Returns the total amount transferred.
-        """
+        '''
+        Calculate and distribute financial assistance to low-income households.
+        
+        Identifies households unable to meet their basic necessity spending targets,
+        and provides them with transfers to cover the deficit plus a small buffer.
+        This ensures all households can afford essential goods and services.
+        
+        Returns:
+        - Total amount of low-income transfers distributed
+        '''
+        
         total_low_income_transfers = 0
         households = [h for h in self.model.agents if isinstance(h, HouseholdAgent)]
         
@@ -186,33 +225,43 @@ class GovernmentAgent(mesa.Agent):
         return total_low_income_transfers
 
     def _execute_government_necessity_spending(self, budget):
-        """
-        Government purchases necessity goods from firms.
-        Budget is provided, split 50/50 between physical and service goods.
-        Returns the total amount spent.
-        """
+        '''
+        Execute government spending on necessity goods from firms.
+        
+        The government purchases necessity goods from firms to stimulate the economy
+        and provide public services. The budget is divided equally between physical
+        and service goods. Purchases are distributed across multiple firms to avoid
+        market concentration.
+        
+        Parameters:
+        - budget: Amount allocated for government spending on necessity goods
+        
+        Returns:
+        - Total amount actually spent on necessity goods
+        '''
+        
         total_spent_on_necessities = 0
         
         spending_for_necessity_goods = budget
         
-        # Split budget for necessity types (e.g., physical and service)
-        # Assuming two main necessity types for simplicity of budget splitting
+        # Split budget for necessity types (physical and service)
         necessity_categories_to_spend_on = ["physical", "service"]
         if not necessity_categories_to_spend_on:
             return 0.0
             
         budget_per_category = spending_for_necessity_goods / len(necessity_categories_to_spend_on)
 
+        # Spend on each necessity category
         for category_area in necessity_categories_to_spend_on:
             remaining_budget_for_this_category = budget_per_category
             
+            # Find firms that match this category and have inventory to sell
             potential_firms_for_category = [
                 f for f in self.model.agents 
                 if hasattr(f, 'firm_type') and f.firm_type == "necessity" 
                 and hasattr(f, 'firm_area') and f.firm_area == category_area
                 and hasattr(f, 'product_price') and f.product_price > 0
                 and hasattr(f, 'inventory') and f.inventory > 0
-                # fulfill_demand_request will check inventory, so initial inventory check here is optional
             ]
             random.shuffle(potential_firms_for_category)
 
@@ -221,51 +270,53 @@ class GovernmentAgent(mesa.Agent):
             while remaining_budget_for_this_category > 0.01 and potential_firms_for_category:
                 chosen_firm = potential_firms_for_category.pop(0) # Get and remove first firm
 
-                if chosen_firm.product_price <= 0: # Should not happen if filtered above, but safety check
+                if chosen_firm.product_price <= 0:
                     continue
 
-                # How many units can government try to buy with its remaining budget for this category from this firm
+                # Calculate how many units can be purchased with remaining budget
                 desired_units = int(remaining_budget_for_this_category / chosen_firm.product_price)
 
                 if desired_units <= 0:
-                    # Cannot even afford one unit from this firm with remaining budget for category
-                    # Try next firm, maybe it's cheaper (though list is shuffled)
                     continue 
                 
-                # print(f"[GOV DEBUG] Trying firm {chosen_firm.unique_id} ({category_area}) for {desired_units} units. Budget left for cat: {remaining_budget_for_this_category:.2f}")
-
+                # Request goods from the firm
                 actually_bought_units = chosen_firm.fulfill_demand_request(desired_units)
 
                 if actually_bought_units > 0:
                     actual_cost_this_transaction = actually_bought_units * chosen_firm.product_price
                     total_spent_on_necessities += actual_cost_this_transaction
                     remaining_budget_for_this_category -= actual_cost_this_transaction
-                    # Update the tracker for government purchases
+                    
+                    # Track government purchases from this firm
                     self.government_purchases_from_firms_step[chosen_firm.unique_id] = \
                         self.government_purchases_from_firms_step.get(chosen_firm.unique_id, 0) + actual_cost_this_transaction
-                    # print(f"[GOV DEBUG] Bought {actually_bought_units} from {chosen_firm.unique_id}. Cost: {actual_cost_this_transaction:.2f}. Budget left for cat: {remaining_budget_for_this_category:.2f}")
-                # else:
-                    # print(f"[GOV DEBUG] Firm {chosen_firm.unique_id} could not fulfill {desired_units} units.")
 
         return total_spent_on_necessities
         
     def _calculate_unemployment_rate(self):
-        """
-        Calculate the unemployment rate based on the number of unemployed persons
-        Returns the unemployment rate as a percentage
-        """
+        '''
+        Calculate the current unemployment rate in the economy.
+        
+        Identifies the labor force (employed persons plus job seekers) and determines
+        what percentage are actively seeking work but unemployed. This is a key
+        economic indicator used to assess the health of the labor market.
+        
+        Updates:
+        - self.unemployment_rate with the percentage of unemployed in the labor force
+        '''
+        
         person_agents = [
             agent for agent in self.model.agents
             if hasattr(agent, 'job_seeking') and hasattr(agent, 'employer')
         ]
 
-
+        # Labor force includes employed persons and job seekers
         current_labor_force = [
             p for p in person_agents
             if p.employer is not None or p.job_seeking 
         ]
 
-        # Unemployed people are those in the labor force who do not have an employer.
+        # Unemployed people are those in the labor force who do not have an employer
         actively_unemployed_persons = [
             p for p in current_labor_force
             if p.employer is None
@@ -276,69 +327,69 @@ class GovernmentAgent(mesa.Agent):
         else:
             self.unemployment_rate = 0.0 # Labor force is empty, so unemployment is 0%
 
-
     def _calculate_gdp(self):
         '''
-        Calculate GDP by summing the value of all production (production * price)
+        Calculate the Gross Domestic Product (GDP) for the current step.
+        
+        GDP is calculated by summing the value of all production (production * price)
+        across all firms. This provides a measure of the total economic output and
+        is a key indicator of economic health.
+        
+        Returns:
+        - GDP value for the current step
         '''
-
+        
         firms = [agent for agent in self.model.agents if hasattr(agent, 'produced_units')]
         
         # Sum the value of all production (production * price)
         total_production_value = sum(firm.produced_units * firm.product_price for firm in firms)
         
-        # Quarterly GDP based on firm production
+        # GDP based on firm production
         step_gdp = total_production_value
-        #print(f"DEBUG: ----- GDP: {step_gdp}")
-        # Yearly GDP estimation (multiplying quarterly by 4)
-        # yearly_gdp = step_gdp * 4
         
         return step_gdp
 
-        """
-        Calculate GDP using the expenditure approach: GDP = C + I + G + (X - M)
-        Returns the yearly GDP value
-        
-        # Get consumer spending from household agents
-        consumer_spending = sum([agent.total_household_expense for agent in self.model.agents 
-                               if hasattr(agent, 'total_household_expense')])
-        investment = 0 # TODO: Make firms invest 
-        step_public_spending = self.yearly_public_spending/4  # Quarterly government spending
-        net_exports = 0 # TODO: Model trade
-        
-        calculated_gdp = consumer_spending + investment + step_public_spending + net_exports
-
-        yearly_gdp = calculated_gdp * 4
-        """
-
-
     def calculate_gini_coefficient(self):
-        """
-        Calculate the Gini coefficient for person income (wage).
-        Returns the Gini coefficient (float between 0 and 1).
-        """
+        '''
+        Calculate the Gini coefficient to measure income inequality.
+        
+        The Gini coefficient ranges from 0 (perfect equality) to 1 (perfect inequality).
+        This implementation uses person wages to compute the coefficient, providing
+        a measure of income distribution across the population.
+        
+        Returns:
+        - Gini coefficient as a float between 0 and 1
+        '''
         persons = [agent for agent in self.model.agents if isinstance(agent, PersonAgent)]
         incomes = [max(0, p.wage) for p in persons]  # Use max(0, wage) to avoid negative incomes
+        
         if not incomes or sum(incomes) == 0:
             return 0.0
+            
         x = sorted(incomes)
         n = len(x)
         B = sum(xi * (n - i) for i, xi in enumerate(x)) / (n * sum(x))
         return 1 + (1 / n) - 2 * B
-
                     
-        
     def step(self):
-        """Execute one step of the government's operations."""
-        self.government_purchases_from_firms_step = {} # Reset for the current step
-        self._calculate_inflation_rate() # Calculate inflation first
+        '''
+        Execute one step of the government's operations in the simulation.
         
-        # Use previous reserves for current spending
+        This method handles the government's complete fiscal cycle including:
+        - Calculating economic indicators like inflation
+        - Distributing welfare payments and transfers
+        - Making government purchases from firms
+        - Collecting taxes from households and corporations
+        - Updating economic metrics like unemployment and GDP
         
-        # Calculate and distribute unemployment payments
+        The step method is called by the model scheduler at each simulation step.
+        '''
+        # Reset tracking for current step
+        self.government_purchases_from_firms_step = {}
+        self._calculate_inflation_rate()
+        
+        # Calculate and distribute welfare payments
         unemployment_payments_total = self._calculate_and_distribute_unemployment_payments()
-
-        # Calculate and distribute low-income transfers
         low_income_transfers_total = self._calculate_and_distribute_low_income_transfers()
         
         # Set initial public spending
@@ -359,7 +410,7 @@ class GovernmentAgent(mesa.Agent):
         self.reserves -= necessity_goods_spent_total
         self.step_public_spending += necessity_goods_spent_total
 
-        # Now collect taxes for the next step
+        # Collect taxes for the next step
         self.step_tax_revenue = self._collect_taxes()
         self.step_corporate_tax_revenue = self._collect_corporate_taxes()
 
