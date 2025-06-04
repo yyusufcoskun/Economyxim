@@ -41,6 +41,7 @@ class EconomicSimulationModel(mesa.Model):
             model_reporters={
                 "Reserves": lambda m: m.government_agent.reserves,
                 "Step Public Spending": lambda m: m.government_agent.step_public_spending,
+                "Step Corporate Tax Revenue": lambda m: m.government_agent.step_corporate_tax_revenue,
                 "Unemployment Rate": lambda m: m.government_agent.unemployment_rate,
                 "GDP": lambda m: m.government_agent.GDP,
                 "Tax Revenue": lambda m: m.government_agent.step_tax_revenue,
@@ -390,5 +391,5 @@ class EconomicSimulationModel(mesa.Model):
         self.current_step += 1
         
         # Print step summary information
-        print(f"[INFO] Step {self.current_step}: Households not meeting necessity goal: {self.unmet_necessity_households_count}")
+        #print(f"[INFO] Step {self.current_step}: Households not meeting necessity goal: {self.unmet_necessity_households_count}")
         print(f"[DEBUG] Step {self.current_step} completed | Highest Capital: {highest_capital:.2f}")

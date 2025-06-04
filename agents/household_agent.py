@@ -374,8 +374,8 @@ class HouseholdAgent(mesa.Agent):
         if total_necessity_target > 0 and necessity_fulfillment < 1.0:
             self.model.unmet_necessity_households_count += 1
 
-        if total_necessity_target > 0.01 and necessity_fulfillment < 0.999: # using 0.999 to account for potential small float inaccuracies
-            print(f"[INFO] Household {self.unique_id} (Income: {self.income_bracket}, Wealth: {self.wealth_bracket}) did NOT meet necessity target. Target: {total_necessity_target:.2f}, Spent: {total_necessity_spent:.2f}, Shortfall: {total_necessity_target - total_necessity_spent:.2f}")
+        #if total_necessity_target > 0.01 and necessity_fulfillment < 0.999: # using 0.999 to account for potential small float inaccuracies
+            #print(f"[INFO] Household {self.unique_id} (Income: {self.income_bracket}, Wealth: {self.wealth_bracket}) did NOT meet necessity target. Target: {total_necessity_target:.2f}, Spent: {total_necessity_spent:.2f}, Shortfall: {total_necessity_target - total_necessity_spent:.2f}")
             
         # Set base health level based on wealth bracket
         if self.wealth_bracket == "low":

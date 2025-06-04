@@ -52,20 +52,6 @@ def main():
         aggfunc="count"
     )
 
-    analysis.create_distribution_plot(
-        df=agent_data,
-        groupby_col="FirmType",
-        value_col="Profit",
-        plot_type="box",
-        title="Distribution of Firm Profits by Type",
-        xlabel="Firm Type",
-        ylabel="Profit",
-        figsize=(10, 6),
-        grid=True,
-        filename="firm_profits-distribution.png",
-        results_folder=output_results_folder
-    )
-
     analysis.create_plot(
         df=model_data,
         plot_type="line", 
@@ -309,23 +295,37 @@ def main():
         aggfunc="mean" 
     )
 
-
-    '''# Add new graph for average total household savings
-    household_data = agent_data.reset_index()[agent_data.reset_index()["TotalHouseholdSavings"].notnull()]
-    analysis.create_plot(
-        df=household_data,
-        plot_type="line",
-        columns=["TotalHouseholdSavings"],
-        title="Average Total Household Savings Over Time",
+    # Add new graph for welfare level by income bracket
+    analysis.create_time_series_by_type(
+        df=agent_data,
+        value_col="Welfare",  
+        type_col="IncomeBracket",    
+        title="Average Welfare Level by Income Bracket Over Time",
         xlabel="Time Step",
-        ylabel="Average Savings",
+        ylabel="Average Welfare Level",
         figsize=(12, 6),
         grid=True,
         legend=True,
-        filename="household_average-savings.png",
-        results_folder=output_results_folder
-    )'''
+        filename="household_welfare-by-income-bracket.png",
+        results_folder=output_results_folder,
+        aggfunc="mean" 
+    )
 
+    # Add Phillips Curve
+    analysis.create_plot(
+        df=model_data,
+        plot_type="scatter",
+        columns=["Unemployment Rate", "Inflation Rate"],
+        title="Phillips Curve (Inflation vs. Unemployment)",
+        xlabel="Unemployment Rate (%)",
+        ylabel="Inflation Rate (%)",
+        figsize=(10, 6),
+        grid=True,
+        filename="phillips_curve.png",
+        results_folder=output_results_folder
+    )
+
+   
 
     
 if __name__ == "__main__":
